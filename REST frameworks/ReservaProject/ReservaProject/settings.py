@@ -40,9 +40,9 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-change-this-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -63,6 +63,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Para servir archivos estáticos en producción
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -95,16 +96,31 @@ WSGI_APPLICATION = 'ReservaProject.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'reservas_db'),
-        'USER': os.environ.get('DB_USER', 'felipevidela'),  # Usuario actual del sistema
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),  # Sin password en instalación local
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+# Railway proporciona DATABASE_URL automáticamente, así que lo usamos si existe
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    # Configuración para producción (Railway)
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    # Configuración para desarrollo local
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'reservas_db'),
+            'USER': os.environ.get('DB_USER', 'felipevidela'),  # Usuario actual del sistema
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),  # Sin password en instalación local
+            'HOST': os.environ.get('DB_HOST', 'localhost'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
+        }
+    }
 
 
 # Password validation
@@ -142,7 +158,18 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Para producción (WhiteNoise)
 STATICFILES_DIRS = [STATIC_DIR]
+
+# Configuración de WhiteNoise para archivos estáticos en producción
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -167,14 +194,21 @@ REST_FRAMEWORK = {
 }
 
 # Configuración CORS para permitir el frontend React
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vite dev server
-    "http://127.0.0.1:5173",
-    "http://localhost:5174",  # Puerto alternativo de Vite
-    "http://127.0.0.1:5174",
-    "http://localhost:5175",  # Puerto alternativo de Vite
-    "http://127.0.0.1:5175",
-]
+# En desarrollo: localhost, en producción: dominio de Vercel
+cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+if cors_origins_env:
+    # En producción: usar la variable de entorno
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',')]
+else:
+    # En desarrollo: usar localhost
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:5173",  # Vite dev server
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",  # Puerto alternativo de Vite
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",  # Puerto alternativo de Vite
+        "http://127.0.0.1:5175",
+    ]
 
 CORS_ALLOW_CREDENTIALS = True
 
