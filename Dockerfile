@@ -42,6 +42,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Invalidar cache para forzar rebuild con código actualizado
 ARG CACHEBUST=1
+RUN echo "Cache bust: $CACHEBUST"
 
 # Copiar código de Django (sin comillas, Docker maneja los espacios)
 COPY ["REST frameworks/ReservaProject/", "./ReservaProject/"]
