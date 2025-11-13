@@ -1,14 +1,13 @@
 # 🚀 Guía de Deployment - Sistema de Reservas
 
-Esta guía te ayudará a desplegar tu sistema de reservas en **Railway** (backend + base de datos) y **Vercel** (frontend).
+Esta guía te ayudará a desplegar tu sistema de reservas completo (backend + frontend + base de datos) en **Railway**.
 
 ## 📋 Índice
 
 1. [Pre-requisitos](#pre-requisitos)
-2. [Desplegar Backend en Railway](#1-desplegar-backend-en-railway)
-3. [Desplegar Frontend en Vercel](#2-desplegar-frontend-en-vercel)
-4. [Verificación Final](#3-verificación-final)
-5. [Solución de Problemas](#solución-de-problemas)
+2. [Desplegar en Railway](#desplegar-en-railway)
+3. [Verificación Final](#verificación-final)
+4. [Solución de Problemas](#solución-de-problemas)
 
 ---
 
