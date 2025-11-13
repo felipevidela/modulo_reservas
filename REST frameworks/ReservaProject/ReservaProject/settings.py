@@ -33,6 +33,10 @@ load_env_file(BASE_DIR / '.env')
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 
+# Frontend React - configuración para producción
+FRONTEND_DIR = BASE_DIR.parent.parent / "Reservas" / "dist"
+FRONTEND_INDEX = FRONTEND_DIR / "index.html"
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -78,7 +82,7 @@ ROOT_URLCONF = 'ReservaProject.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [TEMPLATES_DIR],
+        'DIRS': [TEMPLATES_DIR, FRONTEND_DIR],  # Incluir directorio del frontend
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -159,7 +163,12 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Para producción (WhiteNoise)
-STATICFILES_DIRS = [STATIC_DIR]
+
+# Incluir archivos estáticos del frontend React si existe
+if FRONTEND_DIR.exists():
+    STATICFILES_DIRS = [STATIC_DIR, FRONTEND_DIR / "assets"]
+else:
+    STATICFILES_DIRS = [STATIC_DIR]
 
 # Configuración de WhiteNoise para archivos estáticos en producción
 STORAGES = {
@@ -194,13 +203,14 @@ REST_FRAMEWORK = {
 }
 
 # Configuración CORS para permitir el frontend React
-# En desarrollo: localhost, en producción: dominio de Vercel
+# En desarrollo: localhost (para cuando corres backend y frontend separados)
+# En producción (Railway): no es necesario CORS porque frontend y backend están en el mismo dominio
 cors_origins_env = os.environ.get('CORS_ALLOWED_ORIGINS', '')
 if cors_origins_env:
-    # En producción: usar la variable de entorno
+    # Si se configura manualmente (opcional)
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins_env.split(',')]
 else:
-    # En desarrollo: usar localhost
+    # En desarrollo: permitir Vite dev server
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:5173",  # Vite dev server
         "http://127.0.0.1:5173",

@@ -1,5 +1,7 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+from django.views.generic import TemplateView
+from django.conf import settings
 
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken import views as authtoken_views
@@ -32,3 +34,9 @@ urlpatterns = [
     # Incluir las rutas generadas por el router (mesas y reservas)
     path('', include(router.urls)),
 ]
+
+# Servir el frontend React en producción (todas las rutas no-API)
+if settings.FRONTEND_INDEX.exists():
+    urlpatterns += [
+        re_path(r'^(?!api/|admin/|static/).*$', TemplateView.as_view(template_name='index.html'), name='frontend'),
+    ]
