@@ -1,5 +1,65 @@
+# Python
 __pycache__/
 *.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+ENV/
+
+# Django
 *.sqlite3
 *.sqlite3-journal
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+staticfiles/
+media/
+
+# Environment variables
 .env
+.env.local
+.env.production
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node.js (Frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Frontend build
+dist/
+dist-ssr/
+*.local
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Railway/Heroku
+*.env.production.local
+
+# Logs
+logs/
+*.log
