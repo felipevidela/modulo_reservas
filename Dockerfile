@@ -50,8 +50,10 @@ RUN echo "Cache bust: $CACHEBUST"
 # Copiar código de Django (sin comillas, Docker maneja los espacios)
 COPY ["REST frameworks/ReservaProject/", "./ReservaProject/"]
 
-# Crear directorio para frontend y copiar archivos compilados
+# Crear directorio para frontend y copiar archivos compilados + adaptador WSGI
 RUN mkdir -p ./Reservas
+# Copiamos el adaptador Python (Reservas/__init__.py y Reservas/wsgi.py)
+COPY Reservas/__init__.py Reservas/wsgi.py ./Reservas/
 COPY --from=frontend-builder /app/frontend/dist ./Reservas/dist/
 
 # Cambiar al directorio de Django
