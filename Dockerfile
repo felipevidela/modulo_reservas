@@ -27,6 +27,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Necesitamos que /app esté en PYTHONPATH para que Railway pueda importar `Reservas.wsgi`.
+ENV PYTHONPATH="/app"
+
 # Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     postgresql-client \
