@@ -2,15 +2,15 @@
 # Backend Django + Frontend React en una sola imagen
 
 # Etapa 1: Build del Frontend React
-FROM node:18-alpine AS frontend-builder
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
 # Copiar package.json y package-lock.json
 COPY Reservas/package*.json ./
 
-# Instalar dependencias
-RUN npm ci --only=production || npm install
+# Instalar TODAS las dependencias (incluyendo devDependencies para vite)
+RUN npm ci || npm install
 
 # Copiar código del frontend
 COPY Reservas/ ./
