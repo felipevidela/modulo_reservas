@@ -274,9 +274,6 @@ python manage.py poblar_datos
 
 ## Licencia
 
-Este proyecto es parte de un trabajo académico.
+Este proyecto es parte de para INACAP Chile.
 
----
-
-**¿Necesitas ayuda?** Revisa la documentación de Django REST Framework y React, o contacta al equipo de desarrollo.
 
