@@ -9,8 +9,8 @@ from mainApp import views
 
 # Configurar el router para ViewSets
 router = DefaultRouter()
-router.register(r'api/mesas', views.MesaViewSet, basename='mesa')
-router.register(r'api/reservas', views.ReservaViewSet, basename='reserva')
+router.register(r'mesas', views.MesaViewSet, basename='mesa')
+router.register(r'reservas', views.ReservaViewSet, basename='reserva')
 
 urlpatterns = [
     # Panel de administración de Django
