@@ -35,8 +35,8 @@ urlpatterns = [
     path('', include(router.urls)),
 ]
 
-# Servir el frontend React en producción (todas las rutas no-API)
-if settings.FRONTEND_INDEX.exists():
-    urlpatterns += [
-        re_path(r'^(?!api/|admin/|static/).*$', TemplateView.as_view(template_name='index.html'), name='frontend'),
-    ]
+# Servir el frontend React (todas las rutas no-API)
+# En producción, el frontend siempre debe estar disponible
+urlpatterns += [
+    re_path(r'^(?!api/|admin/|static/).*$', TemplateView.as_view(template_name='index.html'), name='frontend'),
+]
