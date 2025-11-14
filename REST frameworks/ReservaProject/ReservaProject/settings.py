@@ -166,11 +166,9 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')  # Para producción (WhiteNoise)
 
-# Incluir archivos estáticos del frontend React si existe
-if FRONTEND_DIR.exists():
-    STATICFILES_DIRS = [STATIC_DIR, FRONTEND_DIR / "assets"]
-else:
-    STATICFILES_DIRS = [STATIC_DIR]
+# Incluir archivos estáticos del frontend React
+# En producción, incluir los assets compilados por Vite
+STATICFILES_DIRS = [STATIC_DIR, FRONTEND_DIR / "assets"]
 
 # Configuración de WhiteNoise para archivos estáticos en producción
 STORAGES = {
