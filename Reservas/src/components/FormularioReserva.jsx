@@ -1,23 +1,73 @@
 import { useState, useEffect } from 'react';
-import { createReserva, getMesas, getHorasDisponibles } from '../services/reservasApi';
+import { getMesas, getHorasDisponibles, createReserva } from '../services/reservasApi';
 import { validarSeleccionMesa } from '../utils/validaciones';
+import { useFormValidation } from '../hooks/useFormValidation';
+import { useToast } from '../contexts/ToastContext';
+import { formatErrorMessage } from '../utils/errorMessages';
+import { FormSkeleton } from './ui/Skeleton';
 
 export default function FormularioReserva({ onReservaCreada }) {
+  const toast = useToast();
   const [mesas, setMesas] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingMesas, setLoadingMesas] = useState(true);
   const [loadingHoras, setLoadingHoras] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [horasDisponibles, setHorasDisponibles] = useState([]);
   const [horasNoDisponibles, setHorasNoDisponibles] = useState([]);
 
-  const [formData, setFormData] = useState({
-    mesa: '',
-    fecha_reserva: '',
-    hora_inicio: '',
-    num_personas: 1,
-    notas: ''
-  });
+  // Reglas de validación
+  const validationRules = {
+    mesa: (value) => {
+      if (!value) return 'Debe seleccionar una mesa';
+      const validacion = validarSeleccionMesa(value, mesas);
+      return validacion.valido ? null : validacion.mensaje;
+    },
+    fecha_reserva: (value) => {
+      if (!value) return 'Debe seleccionar una fecha';
+      const fechaHoy = new Date().toISOString().split('T')[0];
+      if (value < fechaHoy) return 'No se pueden crear reservas para fechas pasadas';
+      return null;
+    },
+    hora_inicio: (value) => {
+      if (!value) return 'Debe seleccionar una hora';
+      if (horasNoDisponibles.includes(value)) {
+        return 'Esta hora ya no está disponible';
+      }
+      return null;
+    },
+    num_personas: (value, allValues) => {
+      if (!value || value < 1) return 'Debe especificar al menos 1 persona';
+      if (allValues.mesa) {
+        const mesaSeleccionada = mesas.find(m => m.id === parseInt(allValues.mesa));
+        if (mesaSeleccionada && parseInt(value) > mesaSeleccionada.capacidad) {
+          return `La mesa seleccionada tiene capacidad para ${mesaSeleccionada.capacidad} personas`;
+        }
+      }
+      return null;
+    }
+  };
+
+  // Hook de validación de formulario
+  const {
+    values: formData,
+    errors,
+    touched,
+    isSubmitting,
+    handleChange,
+    handleBlur,
+    handleSubmit,
+    setFieldValue,
+    getFieldError
+  } = useFormValidation(
+    {
+      mesa: '',
+      fecha_reserva: '',
+      hora_inicio: '',
+      num_personas: 1,
+      notas: ''
+    },
+    validationRules,
+    300
+  );
 
   // Cargar mesas disponibles al montar el componente
   useEffect(() => {
@@ -43,11 +93,14 @@ export default function FormularioReserva({ onReservaCreada }) {
 
   const cargarMesas = async () => {
     try {
+      setLoadingMesas(true);
       const data = await getMesas();
       setMesas(data);
     } catch (err) {
       console.error('Error al cargar mesas:', err);
-      setError('Error al cargar mesas');
+      toast.error('Error al cargar mesas');
+    } finally {
+      setLoadingMesas(false);
     }
   };
 
@@ -64,8 +117,8 @@ export default function FormularioReserva({ onReservaCreada }) {
 
       // Si la hora seleccionada ya no está disponible, limpiarla
       if (formData.hora_inicio && data.horas_no_disponibles?.includes(formData.hora_inicio)) {
-        setFormData(prev => ({ ...prev, hora_inicio: '' }));
-        setError('La hora seleccionada ya no está disponible. Por favor seleccione otra.');
+        setFieldValue('hora_inicio', '');
+        toast.warning('La hora seleccionada ya no está disponible. Por favor seleccione otra.');
       }
     } catch (err) {
       console.error('Error al cargar horas disponibles:', err);
@@ -87,25 +140,14 @@ export default function FormularioReserva({ onReservaCreada }) {
 
       // Si la mesa seleccionada ya no está disponible, limpiar selección
       if (formData.mesa && !data.find(m => m.id === parseInt(formData.mesa))) {
-        setFormData(prev => ({ ...prev, mesa: '' }));
-        setError('La mesa seleccionada ya no está disponible para esta fecha y hora. Por favor seleccione otra.');
+        setFieldValue('mesa', '');
+        toast.warning('La mesa seleccionada ya no está disponible para esta fecha y hora. Por favor seleccione otra.');
       }
     } catch (err) {
       console.error('Error al cargar mesas disponibles:', err);
       // En caso de error, mostrar todas las mesas
       cargarMesas();
     }
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    // Limpiar mensajes al escribir
-    setError('');
-    setSuccess('');
   };
 
   // Obtener la capacidad de la mesa seleccionada
@@ -115,123 +157,59 @@ export default function FormularioReserva({ onReservaCreada }) {
     return mesaSeleccionada ? mesaSeleccionada.capacidad : 20;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
-
+  // Manejar el submit usando el hook de validación
+  const onSubmit = handleSubmit(async (values) => {
     try {
-      // Validar campos requeridos
-      if (!formData.mesa || !formData.fecha_reserva || !formData.hora_inicio) {
-        setError('Por favor complete todos los campos obligatorios');
-        setLoading(false);
-        return;
-      }
-
-      // Validar que la fecha no sea en el pasado
-      const fechaHoy = new Date().toISOString().split('T')[0];
-      if (formData.fecha_reserva < fechaHoy) {
-        setError('No se pueden crear reservas para fechas pasadas');
-        setLoading(false);
-        return;
-      }
-
-      // FIX #31 (MENOR): Validación de selección de mesa
-      const validacionMesa = validarSeleccionMesa(formData.mesa, mesas);
-      if (!validacionMesa.valido) {
-        setError(validacionMesa.mensaje);
-        setLoading(false);
-        return;
-      }
-
-      // Validar capacidad de la mesa
-      const mesaSeleccionada = mesas.find(m => m.id === parseInt(formData.mesa));
-      if (mesaSeleccionada && parseInt(formData.num_personas) > mesaSeleccionada.capacidad) {
-        setError(`La mesa ${mesaSeleccionada.numero} tiene capacidad para ${mesaSeleccionada.capacidad} personas. No puede reservar para ${formData.num_personas} personas.`);
-        setLoading(false);
-        return;
-      }
-
       // FIX #25 (MODERADO): Revalidar disponibilidad antes de submit
-      // Verificar que la mesa aún esté disponible justo antes de crear la reserva
-      try {
-        const mesasDisponiblesActuales = await getMesas({
-          fecha: formData.fecha_reserva,
-          hora: formData.hora_inicio
-        });
-        const mesaAunDisponible = mesasDisponiblesActuales.find(m => m.id === parseInt(formData.mesa));
+      const mesasDisponiblesActuales = await getMesas({
+        fecha: values.fecha_reserva,
+        hora: values.hora_inicio
+      });
+      const mesaAunDisponible = mesasDisponiblesActuales.find(m => m.id === parseInt(values.mesa));
 
-        if (!mesaAunDisponible) {
-          setError('Lo sentimos, la mesa seleccionada ya no está disponible para esta fecha y hora. Por favor seleccione otra mesa.');
-          // Recargar mesas para mostrar las disponibles actualmente
-          await cargarMesasDisponibles();
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.error('Error al revalidar disponibilidad:', err);
-        // Continuar con la creación - el backend hará la validación final
+      if (!mesaAunDisponible) {
+        toast.error('Lo sentimos, la mesa seleccionada ya no está disponible. Por favor seleccione otra mesa.');
+        await cargarMesasDisponibles();
+        return;
       }
 
-      // FIX #34 (MENOR): Transacciones atómicas en frontend
-      // Guardar datos del formulario por si necesitamos restaurar
-      const formDataBackup = { ...formData };
+      // Crear la reserva
+      const reservaData = {
+        mesa: parseInt(values.mesa),
+        fecha_reserva: values.fecha_reserva,
+        hora_inicio: values.hora_inicio,
+        num_personas: parseInt(values.num_personas),
+        notas: values.notas
+      };
 
+      console.log('Enviando reserva:', reservaData);
+
+      const nuevaReserva = await createReserva(reservaData);
+
+      toast.success('¡Reserva creada exitosamente!');
+
+      // Recargar mesas
       try {
-        // Paso 1: Crear la reserva (operación crítica)
-        const reservaData = {
-          mesa: parseInt(formData.mesa),
-          fecha_reserva: formData.fecha_reserva,
-          hora_inicio: formData.hora_inicio,
-          num_personas: parseInt(formData.num_personas),
-          notas: formData.notas
-        };
+        await cargarMesas();
+      } catch (reloadErr) {
+        console.error('Error al recargar mesas:', reloadErr);
+      }
 
-        console.log('Enviando reserva:', reservaData);
-        const nuevaReserva = await createReserva(reservaData);
-
-        // Paso 2: Solo si la creación fue exitosa, ejecutar operaciones post-creación
-        setSuccess('¡Reserva creada exitosamente!');
-
-        // Paso 3: Limpiar formulario solo después de éxito
-        setFormData({
-          mesa: '',
-          fecha_reserva: '',
-          hora_inicio: '',
-          num_personas: 1,
-          notas: ''
-        });
-
-        // Paso 4: Recargar mesas (no crítico, puede fallar)
+      // Notificar al componente padre
+      if (onReservaCreada) {
         try {
-          await cargarMesas();
-        } catch (reloadErr) {
-          console.error('Error al recargar mesas, pero reserva creada exitosamente:', reloadErr);
-          // No afecta el éxito de la operación principal
+          onReservaCreada(nuevaReserva);
+        } catch (notifyErr) {
+          console.error('Error al notificar componente padre:', notifyErr);
         }
-
-        // Paso 5: Notificar al componente padre (solo si todo fue exitoso)
-        if (onReservaCreada) {
-          try {
-            onReservaCreada(nuevaReserva);
-          } catch (notifyErr) {
-            console.error('Error al notificar componente padre:', notifyErr);
-            // No afecta el éxito de la operación principal
-          }
-        }
-      } catch (createErr) {
-        // Si falla la creación, re-lanzar el error para que sea capturado por el catch externo
-        throw createErr;
       }
-
     } catch (err) {
       console.error('Error completo:', err);
-      setError(err.message || 'Error al crear la reserva');
-    } finally {
-      setLoading(false);
+      const errorMsg = formatErrorMessage(err);
+      toast.error(errorMsg);
+      throw err;
     }
-  };
+  });
 
   // Obtener fecha mínima (hoy)
   const getMinDate = () => {
@@ -255,27 +233,27 @@ export default function FormularioReserva({ onReservaCreada }) {
     return opciones;
   };
 
+  // Mostrar skeleton mientras cargan las mesas
+  if (loadingMesas) {
+    return (
+      <div className="card shadow-sm">
+        <div className="card-header bg-primary text-white">
+          <h5 className="mb-0">Nueva Reserva</h5>
+        </div>
+        <div className="card-body">
+          <FormSkeleton fields={5} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card shadow-sm">
       <div className="card-header bg-primary text-white">
         <h5 className="mb-0">Nueva Reserva</h5>
       </div>
       <div className="card-body">
-        {error && (
-          <div className="alert alert-danger alert-dismissible fade show" role="alert">
-            {error}
-            <button type="button" className="btn-close" onClick={() => setError('')}></button>
-          </div>
-        )}
-
-        {success && (
-          <div className="alert alert-success alert-dismissible fade show" role="alert">
-            {success}
-            <button type="button" className="btn-close" onClick={() => setSuccess('')}></button>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={onSubmit}>
           <div className="row">
             {/* Seleccionar Mesa */}
             <div className="col-md-6 mb-3">
@@ -283,9 +261,10 @@ export default function FormularioReserva({ onReservaCreada }) {
               <select
                 id="mesa"
                 name="mesa"
-                className="form-select"
+                className={`form-select ${getFieldError('mesa') ? 'is-invalid' : touched.mesa ? 'is-valid' : ''}`}
                 value={formData.mesa}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 required
               >
                 <option value="">Seleccione una mesa</option>
@@ -295,6 +274,11 @@ export default function FormularioReserva({ onReservaCreada }) {
                   </option>
                 ))}
               </select>
+              {getFieldError('mesa') && (
+                <div className="invalid-feedback d-block">
+                  {getFieldError('mesa')}
+                </div>
+              )}
             </div>
 
             {/* Número de Personas */}
@@ -304,14 +288,20 @@ export default function FormularioReserva({ onReservaCreada }) {
                 type="number"
                 id="num_personas"
                 name="num_personas"
-                className="form-control"
+                className={`form-control ${getFieldError('num_personas') ? 'is-invalid' : touched.num_personas ? 'is-valid' : ''}`}
                 value={formData.num_personas}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 min="1"
                 max={getMesaCapacidad()}
                 required
               />
-              {formData.mesa && (
+              {getFieldError('num_personas') && (
+                <div className="invalid-feedback d-block">
+                  {getFieldError('num_personas')}
+                </div>
+              )}
+              {formData.mesa && !getFieldError('num_personas') && (
                 <small className="text-muted">
                   Capacidad máxima de la mesa: {getMesaCapacidad()} personas
                 </small>
@@ -325,12 +315,18 @@ export default function FormularioReserva({ onReservaCreada }) {
                 type="date"
                 id="fecha_reserva"
                 name="fecha_reserva"
-                className="form-control"
+                className={`form-control ${getFieldError('fecha_reserva') ? 'is-invalid' : touched.fecha_reserva ? 'is-valid' : ''}`}
                 value={formData.fecha_reserva}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 min={getMinDate()}
                 required
               />
+              {getFieldError('fecha_reserva') && (
+                <div className="invalid-feedback d-block">
+                  {getFieldError('fecha_reserva')}
+                </div>
+              )}
             </div>
 
             {/* Hora de la Reserva */}
@@ -342,27 +338,35 @@ export default function FormularioReserva({ onReservaCreada }) {
                   Consultando disponibilidad...
                 </div>
               ) : (
-                <select
-                  id="hora_inicio"
-                  name="hora_inicio"
-                  className="form-select"
-                  value={formData.hora_inicio}
-                  onChange={handleChange}
-                  disabled={!formData.fecha_reserva || !formData.num_personas}
-                  required
-                >
-                  <option value="">
-                    {formData.fecha_reserva && formData.num_personas ? 'Seleccione una hora' : 'Primero seleccione fecha y número de personas'}
-                  </option>
-                  {generarOpcionesHora().map(hora => {
-                    const estaDisponible = !horasNoDisponibles.includes(hora);
-                    return (
-                      <option key={hora} value={hora} disabled={!estaDisponible}>
-                        {hora} hrs {!estaDisponible ? '(No disponible)' : ''}
-                      </option>
-                    );
-                  })}
-                </select>
+                <>
+                  <select
+                    id="hora_inicio"
+                    name="hora_inicio"
+                    className={`form-select ${getFieldError('hora_inicio') ? 'is-invalid' : touched.hora_inicio ? 'is-valid' : ''}`}
+                    value={formData.hora_inicio}
+                    onChange={handleChange}
+                    onBlur={handleBlur}
+                    disabled={!formData.fecha_reserva || !formData.num_personas}
+                    required
+                  >
+                    <option value="">
+                      {formData.fecha_reserva && formData.num_personas ? 'Seleccione una hora' : 'Primero seleccione fecha y número de personas'}
+                    </option>
+                    {generarOpcionesHora().map(hora => {
+                      const estaDisponible = !horasNoDisponibles.includes(hora);
+                      return (
+                        <option key={hora} value={hora} disabled={!estaDisponible}>
+                          {hora} hrs {!estaDisponible ? '(No disponible)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {getFieldError('hora_inicio') && (
+                    <div className="invalid-feedback d-block">
+                      {getFieldError('hora_inicio')}
+                    </div>
+                  )}
+                </>
               )}
               <small className="text-info d-block mt-1">
                 <i className="bi bi-info-circle me-1"></i>
@@ -395,9 +399,9 @@ export default function FormularioReserva({ onReservaCreada }) {
             <button
               type="submit"
               className="btn btn-primary btn-lg"
-              disabled={loading}
+              disabled={isSubmitting}
             >
-              {loading ? (
+              {isSubmitting ? (
                 <>
                   <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                   Creando reserva...

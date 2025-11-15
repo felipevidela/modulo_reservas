@@ -3,6 +3,7 @@ import { getReservas, updateEstadoReserva } from '../services/reservasApi';
 import { ConfirmModal } from './ui/Modal';
 import { useToast } from '../contexts/ToastContext';
 import { formatErrorMessage } from '../utils/errorMessages';
+import { ReservaSkeleton } from './ui/Skeleton';
 
 export default function MisReservas() {
   const toast = useToast();
@@ -76,11 +77,29 @@ export default function MisReservas() {
 
   if (loading && reservas.length === 0) {
     return (
-      <div className="text-center py-5">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Cargando...</span>
+      <div className="container-fluid">
+        <div className="d-flex justify-content-between align-items-center mb-4">
+          <h2 className="mb-0">Mis Reservas</h2>
         </div>
-        <p className="mt-2">Cargando reservas...</p>
+        <div className="mb-4">
+          <div className="btn-group" role="group">
+            {['TODOS', 'PENDIENTE', 'ACTIVA', 'COMPLETADA', 'CANCELADA'].map(estado => (
+              <button
+                key={estado}
+                type="button"
+                className="btn btn-outline-primary"
+                disabled
+              >
+                {estado}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="row">
+          {[1, 2, 3].map(i => (
+            <ReservaSkeleton key={i} />
+          ))}
+        </div>
       </div>
     );
   }
