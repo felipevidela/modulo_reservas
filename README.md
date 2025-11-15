@@ -11,6 +11,60 @@ Sistema completo de gestión de reservas para restaurantes con backend Django RE
 - 🪑 **Gestión de mesas** con estados
 - 🎨 **Interfaz moderna** con React y Bootstrap 5
 - 🔄 **API REST completa** con filtros y permisos
+- ♻️ **Soft delete**: Recuperación de reservas eliminadas
+- 📊 **Sistema de auditoría**: Registro de operaciones críticas
+- ⚡ **Optimización de rendimiento**: Cache y paginación
+- 🛡️ **Seguridad mejorada**: Validaciones y protección CSRF
+
+## Mejoras de Calidad Implementadas
+
+El sistema incluye **35 mejoras** que garantizan robustez, seguridad y buena experiencia de usuario:
+
+### Backend (31 mejoras)
+
+**Validaciones Críticas:**
+- ✅ Prevención de solapamiento de horarios en reservas
+- ✅ Validación de capacidad de mesas
+- ✅ Validación de horarios de negocio (12:00 - 23:00)
+- ✅ Validación de fechas y horas pasadas
+- ✅ Unicidad de RUT y email en perfiles
+
+**Seguridad:**
+- ✅ Encriptación de datos sensibles (RUT, teléfono)
+- ✅ Validación de SECRET_KEY en producción
+- ✅ Configuración CSRF completa
+- ✅ Límite de caracteres en campos de texto
+- ✅ Constraints a nivel de base de datos
+
+**Rendimiento:**
+- ✅ Paginación de resultados (50 por página)
+- ✅ Índices compuestos en base de datos
+- ✅ Sistema de cache (5 minutos)
+- ✅ Optimización de consultas
+
+**Auditoría y Logs:**
+- ✅ Sistema de logging con archivos rotativos
+- ✅ Registro de operaciones críticas
+- ✅ Logs separados: general y auditoría
+- ✅ Logs de creación y cambio de estado
+
+**Recuperación de Datos:**
+- ✅ Soft delete en reservas
+- ✅ Métodos de restauración
+- ✅ Historial de eliminaciones
+
+**Documentación:**
+- ✅ Documentación completa de endpoints
+- ✅ Ejemplos de filtros y ordenamiento
+- ✅ Especificación de permisos
+
+### Frontend (4 mejoras)
+
+**Validación y UX:**
+- ✅ Revalidación de disponibilidad antes de confirmar
+- ✅ Validación de selección de mesa
+- ✅ Mensajes de error claros y consistentes
+- ✅ Transacciones atómicas (rollback en caso de error)
 
 ## Tecnologías Utilizadas
 
@@ -215,12 +269,58 @@ Los campos `rut` y `telefono` del modelo `Perfil` están **encriptados** usando 
 - Los tokens se guardan en `localStorage` en el frontend
 - Todas las peticiones API incluyen el token en el header `Authorization: Token <token>`
 
-### Validaciones
+### Validaciones Implementadas
 
-- Validación de solapamiento de horarios en reservas
-- Validación de disponibilidad de mesas
-- Permisos a nivel de endpoint y objeto
-- Manejo seguro de contraseñas con hashing
+**Backend:**
+- ✅ Solapamiento de horarios (evita reservas duplicadas)
+- ✅ Capacidad de mesas (validación de número de personas)
+- ✅ Horarios de negocio (12:00 - 23:00)
+- ✅ Fechas y horas pasadas (no permite reservas antiguas)
+- ✅ Unicidad de RUT y email
+- ✅ Constraints en base de datos (num_personas entre 1 y 50)
+- ✅ Validación de SECRET_KEY en producción
+
+**Frontend:**
+- ✅ Revalidación de disponibilidad antes de confirmar
+- ✅ Validación de formularios en tiempo real
+- ✅ Manejo de errores consistente
+- ✅ Validación de selección de mesa
+
+### Sistema de Auditoría
+
+El sistema registra todas las operaciones críticas:
+
+- **Logs generales**: `logs/reservas.log` (10 MB, 5 backups)
+- **Logs de auditoría**: `logs/audit.log` (10 MB, 10 backups)
+
+Eventos registrados:
+- `RESERVA_CREADA`: Usuario, mesa, fecha, hora, personas
+- `ESTADO_CAMBIADO`: Reserva, usuario, estado anterior/nuevo
+
+### Soft Delete
+
+Las reservas eliminadas no se borran permanentemente:
+
+```python
+# Soft delete (marca como eliminada)
+reserva.delete()
+
+# Restaurar reserva
+reserva.restore()
+
+# Eliminar permanentemente (solo admin)
+reserva.hard_delete()
+
+# Consultar eliminadas
+Reserva.objects.only_deleted()
+```
+
+### Sistema de Cache
+
+- Cache en memoria (desarrollo)
+- 1000 entradas máximo
+- Timeout de 5 minutos
+- Preparado para Redis en producción
 
 ## Panel de Administración Django
 
