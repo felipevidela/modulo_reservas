@@ -65,5 +65,6 @@ RUN mkdir -p staticfiles static
 # Exponer puerto (Railway usa variable PORT)
 EXPOSE 8000
 
-# Script de inicio (comentado porque Railway usa Custom Start Command)
-# CMD será definido en Railway Settings > Deploy > Custom Start Command
+# Script de inicio por defecto
+# Railway Custom Start Command sobrescribirá esto si está configurado
+CMD ["gunicorn", "Reservas.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "4", "--log-file", "-", "--log-level", "info"]

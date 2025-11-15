@@ -1,0 +1,1 @@
+python /app/ReservaProject/manage.py migrate --noinput && python /app/ReservaProject/manage.py collectstatic --noinput --clear || true && gunicorn Reservas.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 4 --log-file - --log-level info

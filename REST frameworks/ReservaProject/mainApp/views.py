@@ -445,6 +445,8 @@ class ReservaViewSet(viewsets.ModelViewSet):
         Filtrar reservas según el rol del usuario.
         - Admin y Cajero: todas las reservas
         - Cliente: solo sus propias reservas
+
+        OPTIMIZACIÓN: Usa select_related para evitar N+1 queries
         """
         user = self.request.user
 
@@ -456,6 +458,9 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 queryset = Reserva.objects.filter(cliente=user)
         except AttributeError:
             queryset = Reserva.objects.filter(cliente=user)
+
+        # OPTIMIZACIÓN: Cargar relaciones en una sola query
+        queryset = queryset.select_related('cliente', 'cliente__perfil', 'mesa')
 
         # Filtro por fecha (para HU-17: reservas del día)
         fecha = self.request.query_params.get('date', None)

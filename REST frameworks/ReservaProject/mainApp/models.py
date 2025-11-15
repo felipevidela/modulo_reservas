@@ -122,4 +122,9 @@ class Reserva(models.Model):
         verbose_name = "Reserva"
         verbose_name_plural = "Reservas"
         ordering = ['-fecha_reserva', '-hora_inicio']
+        indexes = [
+            models.Index(fields=['fecha_reserva', 'estado']),
+            models.Index(fields=['estado']),
+            models.Index(fields=['-fecha_reserva', '-hora_inicio']),
+        ]
 
