@@ -488,13 +488,13 @@ export default function ReservaPublica({ onReservaExitosa }) {
                             onClick={() => setShowPassword(!showPassword)}
                             style={{
                               position: 'absolute',
-                              right: '10px',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
+                              right: '12px',
+                              top: '10px',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
-                              color: '#6c757d'
+                              color: '#6c757d',
+                              zIndex: 10
                             }}
                             aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                             role="button"
@@ -539,13 +539,13 @@ export default function ReservaPublica({ onReservaExitosa }) {
                             onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
                             style={{
                               position: 'absolute',
-                              right: '10px',
-                              top: '50%',
-                              transform: 'translateY(-50%)',
+                              right: '12px',
+                              top: '10px',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
-                              color: '#6c757d'
+                              color: '#6c757d',
+                              zIndex: 10
                             }}
                             aria-label={showPasswordConfirm ? "Ocultar contraseña" : "Mostrar contraseña"}
                             role="button"
