@@ -1,5 +1,4 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useDebounce } from './useDebounce';
 
 /**
  * Hook para validación de formularios en tiempo real
@@ -23,14 +22,11 @@ import { useDebounce } from './useDebounce';
  *     }
  *   );
  */
-export function useFormValidation(initialValues = {}, validationRules = {}, debounceDelay = 300) {
+export function useFormValidation(initialValues = {}, validationRules = {}, _debounceDelay = 300) {
   const [values, setValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Debounce de los valores para validación en tiempo real
-  const debouncedValues = useDebounce(values, debounceDelay);
 
   /**
    * Valida un campo específico

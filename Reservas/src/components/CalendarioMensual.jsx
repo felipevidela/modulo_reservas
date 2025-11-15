@@ -26,34 +26,29 @@ export default function CalendarioMensual({ fechaSeleccionada, onDiaClick }) {
 
     const cargarReservasMes = async () => {
         setLoading(true);
-        const reservasPorFecha = {};
-
         try {
             const primerDia = new Date(mesActual);
             const ultimoDia = new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0);
+            const fechaInicio = primerDia.toISOString().split('T')[0];
+            const fechaFin = ultimoDia.toISOString().split('T')[0];
 
-            // Cargar todas las reservas del mes
-            const promesas = [];
-            for (let d = new Date(primerDia); d <= ultimoDia; d.setDate(d.getDate() + 1)) {
-                const fechaStr = d.toISOString().split('T')[0];
-                promesas.push(
-                    getReservas({ fecha: fechaStr })
-                        .then(reservas => ({
-                            fecha: fechaStr,
-                            reservas: reservas
-                        }))
-                        .catch(() => ({ fecha: fechaStr, reservas: [] }))
-                );
-            }
+            const reservasMes = await getReservas(
+                { fecha_inicio: fechaInicio, fecha_fin: fechaFin },
+                { fetchAllPages: true }
+            );
 
-            const resultados = await Promise.all(promesas);
-            resultados.forEach(({ fecha, reservas }) => {
-                reservasPorFecha[fecha] = reservas;
-            });
+            const agrupadas = reservasMes.reduce((acc, reserva) => {
+                if (!acc[reserva.fecha]) {
+                    acc[reserva.fecha] = [];
+                }
+                acc[reserva.fecha].push(reserva);
+                return acc;
+            }, {});
 
-            setReservasPorDia(reservasPorFecha);
+            setReservasPorDia(agrupadas);
         } catch (err) {
             console.error('Error al cargar reservas del mes:', err);
+            setReservasPorDia({});
         } finally {
             setLoading(false);
         }

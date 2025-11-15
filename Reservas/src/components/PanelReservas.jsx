@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { getReservas, updateEstadoReserva } from "../services/reservasApi";
+import {
+    getReservas,
+    updateEstadoReserva,
+    updateReserva,
+    getMesas,
+    getHorasDisponibles
+} from "../services/reservasApi";
 import Modal, { ConfirmModal } from "./ui/Modal";
 import { useToast } from "../contexts/ToastContext";
 import { formatErrorMessage } from "../utils/errorMessages";
 import CalendarioMensual from "./CalendarioMensual";
 
-function PanelReservas({ user, onLogout }) {
+function PanelReservas({ user, onLogout, showAllReservations = false }) {
     // Usar el rol real del usuario autenticado
     const rolActual = user?.rol || "cliente";
     const toast = useToast();
+    const isBrowser = typeof window !== 'undefined';
+    const FILTERS_STORAGE_KEY = showAllReservations ? 'panelReservas_all_filters' : 'panelReservas_filters';
 
     const [reservas, setReservas] = useState([]);
     const [detalleModal, setDetalleModal] = useState({ isOpen: false, reserva: null });
@@ -21,8 +29,9 @@ function PanelReservas({ user, onLogout }) {
 
     // Load filters from sessionStorage
     const loadFiltersFromStorage = () => {
+        if (!isBrowser) return null;
         try {
-            const saved = sessionStorage.getItem('panelReservas_filters');
+            const saved = sessionStorage.getItem(FILTERS_STORAGE_KEY);
             return saved ? JSON.parse(saved) : null;
         } catch {
             return null;
@@ -32,8 +41,22 @@ function PanelReservas({ user, onLogout }) {
     const savedFilters = loadFiltersFromStorage();
 
     const [fecha, setFecha] = useState(() =>
-        savedFilters?.fecha || new Date().toISOString().slice(0, 10)
+        savedFilters?.fecha !== undefined
+            ? savedFilters.fecha
+            : (showAllReservations ? '' : new Date().toISOString().slice(0, 10))
     );
+    const defaultFechaInicio = () => {
+        const today = new Date();
+        today.setDate(today.getDate() - 30);
+        return today.toISOString().slice(0, 10);
+    };
+
+    const [fechaInicio, setFechaInicio] = useState(() =>
+        savedFilters?.fechaInicio !== undefined
+            ? savedFilters.fechaInicio
+            : (showAllReservations ? defaultFechaInicio() : '')
+    );
+    const [fechaFin, setFechaFin] = useState(savedFilters?.fechaFin || '');
     const [estadoFiltro, setEstadoFiltro] = useState(savedFilters?.estadoFiltro || "TODOS");
     const [busqueda, setBusqueda] = useState(savedFilters?.busqueda || "");
 
@@ -62,18 +85,37 @@ function PanelReservas({ user, onLogout }) {
     const [error, setError] = useState("");
 
     // Mobile view state
-    const [isMobileView, setIsMobileView] = useState(window.innerWidth < 768);
+    const [isMobileView, setIsMobileView] = useState(false);
 
     // Calendar view state
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
-    const [reservasMes, setReservasMes] = useState({}); // {date: [reservas]} for calendar view
+
+    // Edit modal state
+    const [editModal, setEditModal] = useState({ isOpen: false, reserva: null });
+    const [formData, setFormData] = useState({
+        fecha_reserva: '',
+        hora_inicio: '',
+        mesa: '',
+        num_personas: 1,
+        notas: ''
+    });
+    const [mesasDisponibles, setMesasDisponibles] = useState([]);
+    const [horasDisponibles, setHorasDisponibles] = useState([]);
+    const [loadingEdit, setLoadingEdit] = useState(false);
 
     // Función para cargar reservas (reutilizable)
     const cargarReservas = async () => {
         try {
             setLoading(true);
             setError("");
-            const data = await getReservas({ fecha });
+            const filtros = {};
+            if (showAllReservations) {
+                if (fechaInicio) filtros.fecha_inicio = fechaInicio;
+                if (fechaFin) filtros.fecha_fin = fechaFin;
+            } else if (fecha) {
+                filtros.fecha = fecha;
+            }
+            const data = await getReservas(filtros);
             setReservas(data);
         } catch (err) {
             console.error(err);
@@ -83,11 +125,11 @@ function PanelReservas({ user, onLogout }) {
         }
     };
 
-    // Cargar reservas al cambiar fecha
+    // Cargar reservas al cambiar filtros relevantes
     useEffect(() => {
         cargarReservas();
         setCurrentPage(1); // Reset to first page on date change
-    }, [fecha]);
+    }, [fecha, fechaInicio, fechaFin, showAllReservations]);
 
     // Auto-refresh effect
     useEffect(() => {
@@ -112,6 +154,7 @@ function PanelReservas({ user, onLogout }) {
 
     // Save filters to sessionStorage
     useEffect(() => {
+        if (!isBrowser) return;
         const filters = {
             fecha,
             estadoFiltro,
@@ -119,22 +162,26 @@ function PanelReservas({ user, onLogout }) {
             searchHora,
             searchPersonasMin,
             searchPersonasMax,
+            fechaInicio,
+            fechaFin,
             itemsPerPage,
             sortField,
             sortDirection
         };
-        sessionStorage.setItem('panelReservas_filters', JSON.stringify(filters));
-    }, [fecha, estadoFiltro, busqueda, searchHora, searchPersonasMin, searchPersonasMax, itemsPerPage, sortField, sortDirection]);
+        sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    }, [fecha, fechaInicio, fechaFin, estadoFiltro, busqueda, searchHora, searchPersonasMin, searchPersonasMax, itemsPerPage, sortField, sortDirection, isBrowser, FILTERS_STORAGE_KEY]);
 
     // Handle window resize for mobile view
     useEffect(() => {
+        if (!isBrowser) return;
         const handleResize = () => {
             setIsMobileView(window.innerWidth < 768);
         };
 
+        handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
-    }, []);
+    }, [isBrowser]);
 
     // Filtro por estado, texto y búsqueda avanzada
     const reservasFiltradas = useMemo(() => {
@@ -215,6 +262,9 @@ function PanelReservas({ user, onLogout }) {
 
     // Function to clear all filters
     const clearAllFilters = () => {
+        setFecha(showAllReservations ? '' : new Date().toISOString().split('T')[0]);
+        setFechaInicio(showAllReservations ? defaultFechaInicio() : '');
+        setFechaFin('');
         setEstadoFiltro("TODOS");
         setBusqueda("");
         setSearchHora("");
@@ -222,11 +272,12 @@ function PanelReservas({ user, onLogout }) {
         setSearchPersonasMax("");
         setSortField(null);
         setSortDirection('asc');
+        setCurrentPage(1);
     };
 
     // Date navigation functions
     const navegarFecha = (dias) => {
-        const fechaActual = new Date(fecha);
+        const fechaActual = fecha ? new Date(fecha) : new Date();
         fechaActual.setDate(fechaActual.getDate() + dias);
         setFecha(fechaActual.toISOString().split('T')[0]);
     };
@@ -332,6 +383,85 @@ function PanelReservas({ user, onLogout }) {
         }
     }
 
+    // Abrir modal de edición con los datos de la reserva
+    async function handleAbrirModalEdicion(reserva) {
+        try {
+            // Extraer el número de mesa del formato "M01" -> 1
+            const numeroMesa = parseInt(reserva.mesa.substring(1));
+
+            // Cargar mesas disponibles
+            const mesas = await getMesas();
+            setMesasDisponibles(mesas);
+
+            // Inicializar el formulario con los datos actuales de la reserva
+            const formInitial = {
+                fecha_reserva: reserva.fecha,
+                hora_inicio: reserva.hora,
+                mesa: numeroMesa,
+                num_personas: reserva.personas,
+                notas: reserva.notas || ''
+            };
+            setFormData(formInitial);
+
+            // Cargar horas disponibles para la fecha y personas actuales
+            await handleCargarHorasDisponibles(reserva.fecha, reserva.personas);
+
+            // Abrir modal
+            setEditModal({ isOpen: true, reserva });
+            setDetalleModal({ isOpen: false, reserva: null });
+        } catch (err) {
+            console.error('Error al abrir modal de edición:', err);
+            toast.error('Error al cargar datos para edición');
+        }
+    }
+
+    // Cargar horas disponibles cuando cambia fecha o número de personas
+    async function handleCargarHorasDisponibles(fecha, personas) {
+        try {
+            const data = await getHorasDisponibles({ fecha, personas });
+            setHorasDisponibles(data.horas_disponibles || []);
+        } catch (err) {
+            console.error('Error al cargar horas disponibles:', err);
+            setHorasDisponibles([]);
+        }
+    }
+
+    // Guardar cambios de la reserva
+    async function handleEditarReserva(e) {
+        e.preventDefault();
+
+        try {
+            setLoadingEdit(true);
+
+            // Preparar datos para enviar al backend
+            const reservaData = {
+                mesa: formData.mesa,
+                fecha_reserva: formData.fecha_reserva,
+                hora_inicio: formData.hora_inicio,
+                num_personas: formData.num_personas,
+                notas: formData.notas
+            };
+
+            await updateReserva({
+                id: editModal.reserva.id,
+                reservaData
+            });
+
+            // Recargar reservas para actualizar la lista
+            await cargarReservas();
+
+            // Cerrar modal y mostrar mensaje de éxito
+            setEditModal({ isOpen: false, reserva: null });
+            toast.success('Reserva actualizada correctamente');
+        } catch (err) {
+            console.error('Error al actualizar reserva:', err);
+            const errorMsg = formatErrorMessage(err);
+            toast.error(errorMsg);
+        } finally {
+            setLoadingEdit(false);
+        }
+    }
+
 
     function renderAcciones(reserva) {
         const isLoading = loadingRows[reserva.id];
@@ -412,14 +542,54 @@ function PanelReservas({ user, onLogout }) {
         return null;
     }
 
+    const panelTitle = showAllReservations ? 'Todas las reservas' : 'Panel de reservas';
+    const panelSubtitle = showAllReservations
+        ? 'Analiza el historial completo usando rangos de fechas personalizados.'
+        : 'Reservas activas, pendientes y canceladas del día.';
+    const fechaLegible = fecha
+        ? new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        })
+        : 'Sin filtro de fecha';
+    const rangoLegible = fechaInicio || fechaFin
+        ? `${fechaInicio || 'inicio'} → ${fechaFin || 'sin fin'}`
+        : 'Sin rango';
+    const handleLimpiarRango = () => {
+        setFechaInicio(defaultFechaInicio());
+        setFechaFin('');
+    };
+    const resumenTarjetas = useMemo(() => ([
+        {
+            label: 'Reservas activas',
+            value: resumen.activas,
+            icon: 'bi-rocket-takeoff',
+            tone: 'primary'
+        },
+        {
+            label: 'Pendientes por confirmar',
+            value: resumen.pendientes,
+            icon: 'bi-hourglass-split',
+            tone: 'warning'
+        },
+        {
+            label: 'Canceladas',
+            value: resumen.canceladas,
+            icon: 'bi-x-octagon',
+            tone: 'danger'
+        },
+    ]), [resumen]);
+
     return (
         <div className="container py-4">
             {/* Título y información de usuario */}
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h1 className="h3 mb-1 fw-semibold">Panel de reservas</h1>
+                    <h1 className="h3 mb-1 fw-semibold">{panelTitle}</h1>
                     <p className="text-muted mb-0">
-                        Reservas activas, pendientes y canceladas del día.
+                        {panelSubtitle}
                     </p>
                 </div>
 
@@ -439,80 +609,73 @@ function PanelReservas({ user, onLogout }) {
 
             {/* Resumen de cantidades por estado */}
             <div className="row g-3 mb-4">
-                <div className="col-md-4">
-                    <div className="card border-0 shadow-sm">
-                        <div className="card-body">
-                            <span className="text-muted small">Reservas activas</span>
-                            <span className="h4 mb-0 d-block">
-                                {resumen.activas}
-                            </span>
+                {resumenTarjetas.map(card => (
+                    <div className="col-md-4" key={card.label}>
+                        <div className="card border-0 shadow-sm resumen-card">
+                            <div className="card-body d-flex align-items-center gap-3">
+                                <div className={`resumen-card__icon text-${card.tone}`}>
+                                    <i className={`bi ${card.icon}`}></i>
+                                </div>
+                                <div>
+                                    <span className="text-muted small d-block">{card.label}</span>
+                                    <span className="h4 mb-0 fw-bold">{card.value}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                <div className="col-md-4">
-                    <div className="card border-0 shadow-sm">
-                        <div className="card-body">
-                            <span className="text-muted small">Reservas pendientes</span>
-                            <span className="h4 mb-0 d-block">
-                                {resumen.pendientes}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="col-md-4">
-                    <div className="card border-0 shadow-sm">
-                        <div className="card-body">
-                            <span className="text-muted small">Reservas canceladas</span>
-                            <span className="h4 mb-0 d-block">
-                                {resumen.canceladas}
-                            </span>
-                        </div>
-                    </div>
-                </div>
+                ))}
             </div>
 
             {/* Filtros de fecha, estado y búsqueda */}
-            <div className="card border-0 shadow-sm mb-4">
+            <div className="card border-0 shadow-sm mb-4 panel-controls">
                 <div className="card-body">
                     {/* Date Navigation and View Toggle */}
-                    <div className="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
-                        <div className="d-flex align-items-center gap-2">
-                            <button
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={() => navegarFecha(-1)}
-                                title="Día anterior"
-                            >
-                                <i className="bi bi-chevron-left"></i>
-                            </button>
-                            <button
-                                className="btn btn-outline-primary btn-sm"
-                                onClick={irAHoy}
-                            >
-                                <i className="bi bi-calendar-check me-1"></i>
-                                Hoy
-                            </button>
-                            <button
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={() => navegarFecha(1)}
-                                title="Día siguiente"
-                            >
-                                <i className="bi bi-chevron-right"></i>
-                            </button>
-                            <div className="vr"></div>
-                            <button
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={irAManana}
-                            >
-                                Mañana
-                            </button>
-                            <button
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={irAEstaSemana}
-                            >
-                                Esta Semana
-                            </button>
+                    <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 pb-3 border-bottom gap-3">
+                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                            {!showAllReservations ? (
+                                <>
+                                    <button
+                                        className="btn btn-outline-secondary btn-sm"
+                                        onClick={() => navegarFecha(-1)}
+                                        title="Día anterior"
+                                        aria-label="Día anterior"
+                                    >
+                                        ‹
+                                    </button>
+                                    <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={irAHoy}
+                                    >
+                                        <i className="bi bi-calendar-check me-1"></i>
+                                        Hoy
+                                    </button>
+                                    <button
+                                        className="btn btn-outline-secondary btn-sm"
+                                        onClick={() => navegarFecha(1)}
+                                        title="Día siguiente"
+                                        aria-label="Día siguiente"
+                                    >
+                                        ›
+                                    </button>
+                                    <div className="vr"></div>
+                                    <button
+                                        className="btn btn-outline-secondary btn-sm"
+                                        onClick={irAManana}
+                                    >
+                                        Mañana
+                                    </button>
+                                    <button
+                                        className="btn btn-outline-secondary btn-sm"
+                                        onClick={irAEstaSemana}
+                                    >
+                                        Esta Semana
+                                    </button>
+                                </>
+                            ) : (
+                                <span className="text-muted small">
+                                    Mostrando todas las reservas. Usa los filtros para acotar.
+                                </span>
+                            )}
                         </div>
 
                         {/* View Mode Toggle */}
@@ -537,29 +700,60 @@ function PanelReservas({ user, onLogout }) {
                     </div>
 
                     <div className="row g-3 mb-3">
-                        <div className="col-md-3">
-                            <label
-                                htmlFor="filtro-fecha"
-                                className="form-label small"
-                            >
-                                Fecha
-                            </label>
-                            <input
-                                type="date"
-                                id="filtro-fecha"
-                                className="form-control form-control-sm"
-                                value={fecha}
-                                onChange={(e) => setFecha(e.target.value)}
-                            />
-                            <small className="text-muted">
-                                {new Date(fecha + 'T00:00:00').toLocaleDateString('es-ES', {
-                                    weekday: 'long',
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                })}
-                            </small>
-                        </div>
+                        {!showAllReservations ? (
+                            <div className="col-md-3">
+                                <label
+                                    htmlFor="filtro-fecha"
+                                    className="form-label small"
+                                >
+                                    Fecha
+                                </label>
+                                <input
+                                    type="date"
+                                    id="filtro-fecha"
+                                    className="form-control form-control-sm"
+                                    value={fecha}
+                                    onChange={(e) => setFecha(e.target.value)}
+                                />
+                                <small className="text-muted">
+                                    {fechaLegible}
+                                </small>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="col-md-3">
+                                    <label
+                                        htmlFor="filtro-fecha-inicio"
+                                        className="form-label small"
+                                    >
+                                        Desde
+                                    </label>
+                                    <input
+                                        type="date"
+                                        id="filtro-fecha-inicio"
+                                        className="form-control form-control-sm"
+                                        value={fechaInicio}
+                                        onChange={(e) => setFechaInicio(e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-md-3">
+                                    <label
+                                        htmlFor="filtro-fecha-fin"
+                                        className="form-label small"
+                                    >
+                                        Hasta
+                                    </label>
+                                    <input
+                                        type="date"
+                                        id="filtro-fecha-fin"
+                                        className="form-control form-control-sm"
+                                        value={fechaFin}
+                                        min={fechaInicio || undefined}
+                                        onChange={(e) => setFechaFin(e.target.value)}
+                                    />
+                                </div>
+                            </>
+                        )}
 
                         <div className="col-md-3">
                             <label
@@ -619,6 +813,20 @@ function PanelReservas({ user, onLogout }) {
                             </select>
                         </div>
                     </div>
+
+                    {showAllReservations && (
+                        <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+                            <span className="badge rounded-pill badge-soft-primary">
+                                <i className="bi bi-calendar-range me-1"></i>
+                                {rangoLegible}
+                            </span>
+                            {(fechaInicio || fechaFin) && (
+                                <button className="btn btn-link btn-sm p-0" onClick={handleLimpiarRango}>
+                                    Limpiar rango
+                                </button>
+                            )}
+                        </div>
+                    )}
 
                     {/* Auto-refresh controls */}
                     <div className="d-flex align-items-center gap-3 pt-2 border-top">
@@ -925,25 +1133,6 @@ function PanelReservas({ user, onLogout }) {
                             </div>
                             <nav aria-label="Paginación de reservas">
                                 <ul className="pagination pagination-sm mb-0">
-                                    <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                        <button
-                                            className="page-link"
-                                            onClick={() => setCurrentPage(1)}
-                                            disabled={currentPage === 1}
-                                        >
-                                            <i className="bi bi-chevron-double-left"></i>
-                                        </button>
-                                    </li>
-                                    <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                                        <button
-                                            className="page-link"
-                                            onClick={() => setCurrentPage(currentPage - 1)}
-                                            disabled={currentPage === 1}
-                                        >
-                                            <i className="bi bi-chevron-left"></i>
-                                        </button>
-                                    </li>
-
                                     {/* Page numbers */}
                                     {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                         let pageNum;
@@ -967,25 +1156,6 @@ function PanelReservas({ user, onLogout }) {
                                             </li>
                                         );
                                     })}
-
-                                    <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                        <button
-                                            className="page-link"
-                                            onClick={() => setCurrentPage(currentPage + 1)}
-                                            disabled={currentPage === totalPages}
-                                        >
-                                            <i className="bi bi-chevron-right"></i>
-                                        </button>
-                                    </li>
-                                    <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                        <button
-                                            className="page-link"
-                                            onClick={() => setCurrentPage(totalPages)}
-                                            disabled={currentPage === totalPages}
-                                        >
-                                            <i className="bi bi-chevron-double-right"></i>
-                                        </button>
-                                    </li>
                                 </ul>
                             </nav>
                         </div>
@@ -995,180 +1165,433 @@ function PanelReservas({ user, onLogout }) {
                 </div>
             </div>
 
-            {/* Modal de detalle de reserva */}
+            {/* Modal de detalle de reserva - Diseño Mejorado */}
             {detalleModal.reserva && (
                 <Modal
                     isOpen={detalleModal.isOpen}
                     onClose={() => setDetalleModal({ isOpen: false, reserva: null })}
-                    title={`Detalle de Reserva #${detalleModal.reserva.id}`}
+                    title={
+                        <div className="d-flex justify-content-between align-items-center flex-wrap gap-3 w-100">
+                            <div>
+                                <span className="fw-semibold d-block">Reserva #{detalleModal.reserva.id}</span>
+                                <small className="text-muted">Detalle completo del cliente y su mesa</small>
+                            </div>
+                            <span className={`estado-chip estado-chip--${(detalleModal.reserva.estado || '').toLowerCase()}`}>
+                                <i className={`bi ${{
+                                    ACTIVA: 'bi-lightning-charge-fill',
+                                    PENDIENTE: 'bi-clock-history',
+                                    COMPLETADA: 'bi-check2-circle',
+                                    CANCELADA: 'bi-x-octagon-fill'
+                                }[detalleModal.reserva.estado] || 'bi-info-circle'} me-2`}></i>
+                                {detalleModal.reserva.estado}
+                            </span>
+                        </div>
+                    }
+                    size="xl"
+                >
+                    <div className="reserva-detalle-content">
+                        {/* Header visual con resumen rápido */}
+                        <div className="reserva-header-summary mb-4 p-4 bg-light rounded-3">
+                            <div className="row g-3 text-center">
+                                <div className="col-md-3">
+                                    <div className="summary-item">
+                                        <i className="bi bi-calendar3 fs-2 text-primary mb-2 d-block"></i>
+                                        <div className="small text-muted">Fecha</div>
+                                        <div className="fw-bold">
+                                            {new Date(detalleModal.reserva.fecha + 'T00:00:00').toLocaleDateString('es-ES', {
+                                                day: 'numeric',
+                                                month: 'short'
+                                            })}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="col-md-3">
+                                    <div className="summary-item">
+                                        <i className="bi bi-clock fs-2 text-primary mb-2 d-block"></i>
+                                        <div className="small text-muted">Horario</div>
+                                        <div className="fw-bold">{formatearHora(detalleModal.reserva.hora)}</div>
+                                    </div>
+                                </div>
+                                <div className="col-md-3">
+                                    <div className="summary-item">
+                                        <i className="bi bi-table fs-2 text-primary mb-2 d-block"></i>
+                                        <div className="small text-muted">Mesa</div>
+                                        <div className="fw-bold">{detalleModal.reserva.mesa}</div>
+                                    </div>
+                                </div>
+                                <div className="col-md-3">
+                                    <div className="summary-item">
+                                        <i className="bi bi-people fs-2 text-primary mb-2 d-block"></i>
+                                        <div className="small text-muted">Personas</div>
+                                        <div className="fw-bold">{detalleModal.reserva.personas}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="row g-4">
+                            {/* Información del Cliente - Card */}
+                            <div className="col-lg-6">
+                                <div className="card h-100 border-0 shadow-sm">
+                                    <div className="card-header bg-primary bg-gradient text-white">
+                                        <h6 className="mb-0">
+                                            <i className="bi bi-person-circle me-2"></i>
+                                            Información del Cliente
+                                        </h6>
+                                    </div>
+                                    <div className="card-body">
+                                        <div className="info-item mb-3">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <i className="bi bi-person-fill text-primary me-2 fs-5"></i>
+                                                <span className="small text-muted">Nombre completo</span>
+                                            </div>
+                                            <div className="ps-4 fw-semibold">{detalleModal.reserva.cliente}</div>
+                                        </div>
+
+                                        {detalleModal.reserva.cliente_telefono && (
+                                            <div className="info-item mb-3">
+                                                <div className="d-flex align-items-center mb-2">
+                                                    <i className="bi bi-telephone-fill text-success me-2 fs-5"></i>
+                                                    <span className="small text-muted">Teléfono</span>
+                                                </div>
+                                                <div className="ps-4">
+                                                    <a
+                                                        href={`tel:${detalleModal.reserva.cliente_telefono}`}
+                                                        className="text-decoration-none fw-semibold text-success d-inline-flex align-items-center text-break"
+                                                        >
+                                                        {detalleModal.reserva.cliente_telefono}
+                                                        <i className="bi bi-box-arrow-up-right ms-2 small"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {detalleModal.reserva.cliente_email && (
+                                            <div className="info-item mb-3">
+                                                <div className="d-flex align-items-center mb-2">
+                                                    <i className="bi bi-envelope-fill text-info me-2 fs-5"></i>
+                                                    <span className="small text-muted">Email</span>
+                                                </div>
+                                                <div className="ps-4">
+                                                    <a
+                                                        href={`mailto:${detalleModal.reserva.cliente_email}`}
+                                                        className="text-decoration-none fw-semibold text-info d-inline-flex align-items-center text-break"
+                                                    >
+                                                        {detalleModal.reserva.cliente_email}
+                                                        <i className="bi bi-box-arrow-up-right ms-2 small"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {detalleModal.reserva.cliente_rut && (
+                                            <div className="info-item">
+                                                <div className="d-flex align-items-center mb-2">
+                                                    <i className="bi bi-card-text text-secondary me-2 fs-5"></i>
+                                                    <span className="small text-muted">RUT</span>
+                                                </div>
+                                                <div className="ps-4 fw-semibold font-monospace">{detalleModal.reserva.cliente_rut}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Detalles de la Reserva - Card */}
+                            <div className="col-lg-6">
+                                <div className="card h-100 border-0 shadow-sm">
+                                    <div className="card-header bg-success bg-gradient text-white">
+                                        <h6 className="mb-0">
+                                            <i className="bi bi-calendar-check me-2"></i>
+                                            Detalles de la Reserva
+                                        </h6>
+                                    </div>
+                                    <div className="card-body">
+                                        <div className="info-item mb-3">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <i className="bi bi-calendar3 text-primary me-2 fs-5"></i>
+                                                <span className="small text-muted">Fecha completa</span>
+                                            </div>
+                                            <div className="ps-4 fw-semibold">
+                                                {new Date(detalleModal.reserva.fecha + 'T00:00:00').toLocaleDateString('es-ES', {
+                                                    weekday: 'long',
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        <div className="info-item mb-3">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <i className="bi bi-clock-fill text-warning me-2 fs-5"></i>
+                                                <span className="small text-muted">Horario de reserva</span>
+                                            </div>
+                                            <div className="ps-4">
+                                                <span className="badge bg-warning text-dark fs-6 px-3 py-2">
+                                                    {formatearHora(detalleModal.reserva.hora)} hrs
+                                                    {detalleModal.reserva.hora_fin && ` - ${formatearHora(detalleModal.reserva.hora_fin)} hrs`}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="info-item mb-3">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <i className="bi bi-table text-info me-2 fs-5"></i>
+                                                <span className="small text-muted">Mesa asignada</span>
+                                            </div>
+                                            <div className="ps-4">
+                                                <span className="badge bg-info fs-6 px-3 py-2">{detalleModal.reserva.mesa}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="info-item">
+                                            <div className="d-flex align-items-center mb-2">
+                                                <i className="bi bi-people-fill text-success me-2 fs-5"></i>
+                                                <span className="small text-muted">Número de comensales</span>
+                                            </div>
+                                            <div className="ps-4 fw-semibold">
+                                                {detalleModal.reserva.personas} {detalleModal.reserva.personas === 1 ? 'persona' : 'personas'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Notas Especiales - Full Width Card */}
+                        {detalleModal.reserva.notas && (
+                            <div className="mt-4">
+                                <div className="card border-0 shadow-sm">
+                                    <div className="card-header bg-warning bg-opacity-10 border-warning">
+                                        <h6 className="mb-0 text-warning-emphasis">
+                                            <i className="bi bi-chat-left-text-fill me-2"></i>
+                                            Notas y Requerimientos Especiales
+                                        </h6>
+                                    </div>
+                                    <div className="card-body bg-warning bg-opacity-10">
+                                        <div className="d-flex align-items-start">
+                                            <i className="bi bi-quote text-warning-emphasis me-3 fs-3"></i>
+                                            <p className="mb-0 fst-italic">{detalleModal.reserva.notas}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Acciones */}
+                        <div className="d-flex justify-content-between align-items-center pt-4 mt-4 border-top">
+                            <button
+                                className="btn btn-lg btn-outline-secondary"
+                                onClick={() => setDetalleModal({ isOpen: false, reserva: null })}
+                            >
+                                <i className="bi bi-x-circle me-2"></i>
+                                Cerrar
+                            </button>
+
+                            <div className="d-flex gap-2">
+                                {/* Cambiar Estado (solo para Cajero) */}
+                                {rolActual === "cajero" && (
+                                    <div className="dropdown">
+                                        <button
+                                            className="btn btn-lg btn-outline-primary dropdown-toggle"
+                                            type="button"
+                                            data-bs-toggle="dropdown"
+                                        >
+                                            <i className="bi bi-arrow-left-right me-2"></i>
+                                            Cambiar Estado
+                                        </button>
+                                        <ul className="dropdown-menu dropdown-menu-end">
+                                            {[
+                                                { label: "ACTIVA", value: "activa", icon: "bi-check-circle", color: "success" },
+                                                { label: "PENDIENTE", value: "pendiente", icon: "bi-clock", color: "warning" },
+                                                { label: "COMPLETADA", value: "completada", icon: "bi-check-all", color: "info" },
+                                                { label: "CANCELADA", value: "cancelada", icon: "bi-x-circle", color: "danger" }
+                                            ]
+                                                .filter(e => e.label !== detalleModal.reserva.estado)
+                                                .map(estado => (
+                                                    <li key={estado.value}>
+                                                        <button
+                                                            className="dropdown-item"
+                                                            onClick={() => {
+                                                                setDetalleModal({ isOpen: false, reserva: null });
+                                                                handleCambiarEstado(detalleModal.reserva.id, estado.value);
+                                                            }}
+                                                        >
+                                                            <i className={`bi ${estado.icon} me-2 text-${estado.color}`}></i>
+                                                            Cambiar a {estado.label}
+                                                        </button>
+                                                    </li>
+                                                ))
+                                            }
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Botón Editar (para Admin y Cajero) */}
+                                {(rolActual === "admin" || rolActual === "cajero") && (
+                                    <button
+                                        className="btn btn-lg btn-primary"
+                                        onClick={() => handleAbrirModalEdicion(detalleModal.reserva)}
+                                    >
+                                        <i className="bi bi-pencil-square me-2"></i>
+                                        Editar Reserva
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                </Modal>
+            )}
+
+            {/* Modal de edición de reserva */}
+            {editModal.reserva && (
+                <Modal
+                    isOpen={editModal.isOpen}
+                    onClose={() => setEditModal({ isOpen: false, reserva: null })}
+                    title={`Editar Reserva #${editModal.reserva.id}`}
                     size="lg"
                 >
-                    {/* Header con estado */}
-                    <div className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-                        <h6 className="mb-0">Información de la Reserva</h6>
-                        <span className={`estado-badge estado-${detalleModal.reserva.estado}`}>
-                            {detalleModal.reserva.estado}
-                        </span>
-                    </div>
-
-                    <div className="row">
-                        {/* Información del Cliente */}
-                        <div className="col-md-6 mb-4">
-                            <h6 className="text-primary mb-3">
-                                <i className="bi bi-person-circle me-2"></i>
-                                Datos del Cliente
-                            </h6>
-                            <div className="mb-2">
-                                <strong className="text-muted small">Nombre:</strong>
-                                <p className="mb-1">{detalleModal.reserva.cliente}</p>
-                            </div>
-                            {detalleModal.reserva.cliente_telefono && (
-                                <div className="mb-2">
-                                    <strong className="text-muted small">Teléfono:</strong>
-                                    <p className="mb-1">
-                                        <a href={`tel:${detalleModal.reserva.cliente_telefono}`} className="text-decoration-none">
-                                            <i className="bi bi-telephone me-1"></i>
-                                            {detalleModal.reserva.cliente_telefono}
-                                        </a>
-                                    </p>
-                                </div>
-                            )}
-                            {detalleModal.reserva.cliente_email && (
-                                <div className="mb-2">
-                                    <strong className="text-muted small">Email:</strong>
-                                    <p className="mb-1">
-                                        <a href={`mailto:${detalleModal.reserva.cliente_email}`} className="text-decoration-none">
-                                            <i className="bi bi-envelope me-1"></i>
-                                            {detalleModal.reserva.cliente_email}
-                                        </a>
-                                    </p>
-                                </div>
-                            )}
-                            {detalleModal.reserva.cliente_rut && (
-                                <div className="mb-2">
-                                    <strong className="text-muted small">RUT:</strong>
-                                    <p className="mb-1">{detalleModal.reserva.cliente_rut}</p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Información de la Reserva */}
-                        <div className="col-md-6 mb-4">
-                            <h6 className="text-primary mb-3">
-                                <i className="bi bi-calendar-event me-2"></i>
-                                Detalles de la Reserva
-                            </h6>
-                            <div className="mb-2">
-                                <strong className="text-muted small">Mesa:</strong>
-                                <p className="mb-1">{detalleModal.reserva.mesa}</p>
-                            </div>
-                            <div className="mb-2">
-                                <strong className="text-muted small">Fecha:</strong>
-                                <p className="mb-1">
-                                    <i className="bi bi-calendar3 me-1"></i>
-                                    {new Date(detalleModal.reserva.fecha + 'T00:00:00').toLocaleDateString('es-ES', {
-                                        weekday: 'long',
-                                        year: 'numeric',
-                                        month: 'long',
-                                        day: 'numeric'
-                                    })}
-                                </p>
-                            </div>
-                            <div className="mb-2">
-                                <strong className="text-muted small">Hora:</strong>
-                                <p className="mb-1">
-                                    <i className="bi bi-clock me-1"></i>
-                                    {formatearHora(detalleModal.reserva.hora)} hrs
-                                    {detalleModal.reserva.hora_fin && ` - ${formatearHora(detalleModal.reserva.hora_fin)} hrs`}
-                                </p>
-                            </div>
-                            <div className="mb-2">
-                                <strong className="text-muted small">Personas:</strong>
-                                <p className="mb-1">
-                                    <i className="bi bi-people me-1"></i>
-                                    {detalleModal.reserva.personas} {detalleModal.reserva.personas === 1 ? 'persona' : 'personas'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Notas */}
-                    {detalleModal.reserva.notas && (
-                        <div className="mb-4">
-                            <h6 className="text-primary mb-2">
-                                <i className="bi bi-chat-left-text me-2"></i>
-                                Notas Especiales
-                            </h6>
-                            <div className="alert alert-info py-2 mb-0">
-                                {detalleModal.reserva.notas}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Acciones */}
-                    <div className="d-flex justify-content-between align-items-center pt-3 border-top">
-                        <button
-                            className="btn btn-outline-secondary"
-                            onClick={() => setDetalleModal({ isOpen: false, reserva: null })}
-                        >
-                            Cerrar
-                        </button>
-
-                        <div className="d-flex gap-2">
-                            {/* Cambiar Estado (solo para Cajero) */}
-                            {rolActual === "cajero" && (
-                                <div className="dropdown">
-                                    <button
-                                        className="btn btn-outline-primary dropdown-toggle"
-                                        type="button"
-                                        data-bs-toggle="dropdown"
-                                    >
-                                        <i className="bi bi-arrow-left-right me-1"></i>
-                                        Cambiar Estado
-                                    </button>
-                                    <ul className="dropdown-menu">
-                                        {[
-                                            { label: "ACTIVA", value: "activa", icon: "bi-check-circle", color: "success" },
-                                            { label: "PENDIENTE", value: "pendiente", icon: "bi-clock", color: "warning" },
-                                            { label: "COMPLETADA", value: "completada", icon: "bi-check-all", color: "info" },
-                                            { label: "CANCELADA", value: "cancelada", icon: "bi-x-circle", color: "danger" }
-                                        ]
-                                            .filter(e => e.label !== detalleModal.reserva.estado)
-                                            .map(estado => (
-                                                <li key={estado.value}>
-                                                    <button
-                                                        className="dropdown-item"
-                                                        onClick={() => {
-                                                            setDetalleModal({ isOpen: false, reserva: null });
-                                                            handleCambiarEstado(detalleModal.reserva.id, estado.value);
-                                                        }}
-                                                    >
-                                                        <i className={`bi ${estado.icon} me-2 text-${estado.color}`}></i>
-                                                        Cambiar a {estado.label}
-                                                    </button>
-                                                </li>
-                                            ))
-                                        }
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Botón Editar (para Admin y Cajero) */}
-                            {(rolActual === "admin" || rolActual === "cajero") && (
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => {
-                                        // TODO: Implementar modal de edición
-                                        toast.info('Función de edición en desarrollo');
-                                        setDetalleModal({ isOpen: false, reserva: null });
+                    <form onSubmit={handleEditarReserva}>
+                        <div className="row g-3">
+                            {/* Fecha */}
+                            <div className="col-md-6">
+                                <label htmlFor="edit-fecha" className="form-label fw-semibold">
+                                    Fecha <span className="text-danger">*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    className="form-control"
+                                    id="edit-fecha"
+                                    value={formData.fecha_reserva}
+                                    min={new Date().toISOString().split('T')[0]}
+                                    required
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, fecha_reserva: e.target.value, hora_inicio: '' });
+                                        handleCargarHorasDisponibles(e.target.value, formData.num_personas);
                                     }}
+                                />
+                            </div>
+
+                            {/* Número de Personas */}
+                            <div className="col-md-6">
+                                <label htmlFor="edit-personas" className="form-label fw-semibold">
+                                    Número de Personas <span className="text-danger">*</span>
+                                </label>
+                                <input
+                                    type="number"
+                                    className="form-control"
+                                    id="edit-personas"
+                                    value={formData.num_personas}
+                                    min="1"
+                                    max="50"
+                                    required
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, num_personas: parseInt(e.target.value), hora_inicio: '' });
+                                        if (formData.fecha_reserva) {
+                                            handleCargarHorasDisponibles(formData.fecha_reserva, parseInt(e.target.value));
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            {/* Hora */}
+                            <div className="col-md-6">
+                                <label htmlFor="edit-hora" className="form-label fw-semibold">
+                                    Hora de la Reserva <span className="text-danger">*</span>
+                                </label>
+                                <select
+                                    className="form-select"
+                                    id="edit-hora"
+                                    value={formData.hora_inicio}
+                                    required
+                                    onChange={(e) => setFormData({ ...formData, hora_inicio: e.target.value })}
                                 >
-                                    <i className="bi bi-pencil me-1"></i>
-                                    Editar Reserva
-                                </button>
-                            )}
+                                    <option value="">Seleccione una hora</option>
+                                    {horasDisponibles.map((hora) => (
+                                        <option key={hora} value={hora}>
+                                            {hora} hrs
+                                        </option>
+                                    ))}
+                                </select>
+                                {horasDisponibles.length === 0 && formData.fecha_reserva && (
+                                    <div className="form-text text-warning">
+                                        <i className="bi bi-exclamation-triangle me-1"></i>
+                                        No hay horas disponibles para esta fecha y número de personas
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Mesa */}
+                            <div className="col-md-6">
+                                <label htmlFor="edit-mesa" className="form-label fw-semibold">
+                                    Mesa <span className="text-danger">*</span>
+                                </label>
+                                <select
+                                    className="form-select"
+                                    id="edit-mesa"
+                                    value={formData.mesa}
+                                    required
+                                    onChange={(e) => setFormData({ ...formData, mesa: parseInt(e.target.value) })}
+                                >
+                                    <option value="">Seleccione una mesa</option>
+                                    {mesasDisponibles
+                                        .filter((mesa) => mesa.capacidad >= formData.num_personas)
+                                        .map((mesa) => (
+                                            <option key={mesa.id} value={mesa.numero}>
+                                                Mesa {mesa.numero} (Capacidad: {mesa.capacidad} personas)
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            {/* Notas */}
+                            <div className="col-12">
+                                <label htmlFor="edit-notas" className="form-label fw-semibold">
+                                    Notas Especiales
+                                </label>
+                                <textarea
+                                    className="form-control"
+                                    id="edit-notas"
+                                    rows="3"
+                                    placeholder="Ej: Alergia a los frutos secos, silla para bebé, etc."
+                                    value={formData.notas}
+                                    onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
+                                ></textarea>
+                            </div>
                         </div>
-                    </div>
+
+                        {/* Botones */}
+                        <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                            <button
+                                type="button"
+                                className="btn btn-outline-secondary"
+                                onClick={() => setEditModal({ isOpen: false, reserva: null })}
+                                disabled={loadingEdit}
+                            >
+                                <i className="bi bi-x-circle me-2"></i>
+                                Cancelar
+                            </button>
+                            <button
+                                type="submit"
+                                className="btn btn-primary"
+                                disabled={loadingEdit || horasDisponibles.length === 0}
+                            >
+                                {loadingEdit ? (
+                                    <>
+                                        <span className="spinner-border spinner-border-sm me-2"></span>
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <i className="bi bi-check-lg me-2"></i>
+                                        Guardar Cambios
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
                 </Modal>
             )}
 

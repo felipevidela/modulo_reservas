@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { listarUsuarios, cambiarRolUsuario } from '../services/reservasApi';
 
 export default function GestionUsuarios() {
@@ -8,6 +8,10 @@ export default function GestionUsuarios() {
   const [filtroRol, setFiltroRol] = useState('TODOS');
   const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [nuevoRol, setNuevoRol] = useState('');
+
+  // Estados de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     cargarUsuarios();
@@ -71,6 +75,19 @@ export default function GestionUsuarios() {
   const usuariosFiltrados = filtroRol === 'TODOS'
     ? usuarios
     : usuarios.filter(u => u.rol === filtroRol.toLowerCase());
+
+  // Lógica de paginación
+  const totalPages = Math.ceil(usuariosFiltrados.length / itemsPerPage);
+  const usuariosPaginados = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return usuariosFiltrados.slice(startIndex, endIndex);
+  }, [usuariosFiltrados, currentPage, itemsPerPage]);
+
+  // Reset a página 1 cuando cambian los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filtroRol]);
 
   const formatearFecha = (fecha) => {
     if (!fecha) return 'Nunca';
@@ -155,19 +172,39 @@ export default function GestionUsuarios() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="mb-4">
-        <div className="btn-group" role="group">
-          {['TODOS', 'ADMIN', 'CAJERO', 'MESERO', 'CLIENTE'].map(rol => (
-            <button
-              key={rol}
-              type="button"
-              className={`btn ${filtroRol === rol ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => setFiltroRol(rol)}
+      {/* Filtros y Controles */}
+      <div className="row mb-4 align-items-center">
+        <div className="col-md-8">
+          <div className="btn-group" role="group">
+            {['TODOS', 'ADMIN', 'CAJERO', 'MESERO', 'CLIENTE'].map(rol => (
+              <button
+                key={rol}
+                type="button"
+                className={`btn ${filtroRol === rol ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => setFiltroRol(rol)}
+              >
+                {rol}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="d-flex align-items-center justify-content-end">
+            <label htmlFor="itemsPerPage" className="me-2 small text-nowrap">Items por página:</label>
+            <select
+              id="itemsPerPage"
+              className="form-select form-select-sm"
+              style={{ width: '80px' }}
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
             >
-              {rol}
-            </button>
-          ))}
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -195,7 +232,7 @@ export default function GestionUsuarios() {
                   </tr>
                 </thead>
                 <tbody>
-                  {usuariosFiltrados.map(usuario => (
+                  {usuariosPaginados.map(usuario => (
                     <tr key={usuario.id}>
                       <td>{usuario.id}</td>
                       <td>
@@ -268,6 +305,41 @@ export default function GestionUsuarios() {
                 </tbody>
               </table>
             </div>
+
+            {/* Paginación */}
+            {totalPages > 1 && (
+              <div className="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                <div className="text-muted small">
+                  Mostrando {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, usuariosFiltrados.length)} de {usuariosFiltrados.length} usuarios
+                </div>
+                <nav aria-label="Paginación de usuarios">
+                  <ul className="pagination pagination-sm mb-0">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <li key={pageNum} className={`page-item ${currentPage === pageNum ? 'active' : ''}`}>
+                          <button
+                            className="page-link"
+                            onClick={() => setCurrentPage(pageNum)}
+                          >
+                            {pageNum}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </nav>
+              </div>
+            )}
           </div>
         </div>
       )}
