@@ -112,6 +112,10 @@ export default function FormularioReserva({ onReservaCreada }) {
         personas: formData.num_personas
       });
 
+      console.log('📅 DEBUG - Horas disponibles:', data);
+      console.log('✅ Horas disponibles:', data.horas_disponibles?.length || 0, 'horas');
+      console.log('❌ Horas NO disponibles:', data.horas_no_disponibles?.length || 0, 'horas', data.horas_no_disponibles);
+
       setHorasDisponibles(data.horas_disponibles || []);
       setHorasNoDisponibles(data.horas_no_disponibles || []);
 
