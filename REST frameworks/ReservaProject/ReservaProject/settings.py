@@ -199,7 +199,21 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         # Por defecto, exigimos que al menos esté autenticado
         'rest_framework.permissions.IsAuthenticated',
-    ]
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        # Anónimos: máximo 20 requests por hora (previene spam en registro/login)
+        'anon': '20/hour',
+        # Usuarios autenticados: 100 requests por hora
+        'user': '100/hour',
+        # Rate especial para registro: 5 intentos por hora
+        'register': '5/hour',
+        # Rate especial para login: 10 intentos por hora
+        'login': '10/hour',
+    }
 }
 
 # Configuración CORS para permitir el frontend React

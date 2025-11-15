@@ -5,9 +5,10 @@ from datetime import date
 
 from rest_framework import viewsets, views, status, filters
 from rest_framework.response import Response
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.authtoken.models import Token
+from rest_framework.throttling import AnonRateThrottle
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Mesa, Perfil, Reserva
@@ -29,10 +30,23 @@ from .permissions import (
 )
 
 
+# ============ THROTTLING CLASSES ============
+
+class RegisterRateThrottle(AnonRateThrottle):
+    """Rate limiting para registro: 5 intentos por hora"""
+    scope = 'register'
+
+
+class LoginRateThrottle(AnonRateThrottle):
+    """Rate limiting para login: 10 intentos por hora"""
+    scope = 'login'
+
+
 # ============ ENDPOINTS DE AUTENTICACIÓN ============
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def register_user(request):
     """
     Endpoint para registrar un nuevo usuario (Cliente) con datos completos del perfil.
@@ -41,6 +55,7 @@ def register_user(request):
         username, email, password, password_confirm,
         nombre, apellido, rut, telefono, email_perfil (opcional)
     }
+    Rate limit: 5 intentos por hora
     """
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
@@ -65,6 +80,7 @@ def register_user(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([RegisterRateThrottle])
 def register_and_reserve(request):
     """
     Endpoint combinado: registrar usuario y crear reserva en una sola transacción.
@@ -76,6 +92,7 @@ def register_and_reserve(request):
         # Datos de la reserva
         mesa, fecha_reserva, hora_inicio, num_personas, notas (opcional)
     }
+    Rate limit: 5 intentos por hora
     """
     from django.db import transaction
 
@@ -162,12 +179,14 @@ def register_and_reserve(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_user(request):
     """
     Endpoint para login de usuario.
     Acepta username o email como identificador.
     POST /api/login/
     Body: {username (o email), password}
+    Rate limit: 10 intentos por hora
     """
     from django.contrib.auth import authenticate
 
@@ -192,6 +211,12 @@ def login_user(request):
             pass
 
     if user:
+        # IMPORTANTE: Verificar que el usuario esté activo
+        if not user.is_active:
+            return Response(
+                {'error': 'Esta cuenta ha sido desactivada'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         token, created = Token.objects.get_or_create(user=user)
 
         # Asegurar que tiene perfil
