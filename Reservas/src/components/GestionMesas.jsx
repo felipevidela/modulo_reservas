@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getMesas, updateEstadoMesa } from '../services/reservasApi';
+import { getMesas, updateEstadoMesa, getReservas } from '../services/reservasApi';
 import { handleError } from '../utils/errorHandler';
 
 export default function GestionMesas() {
@@ -10,6 +10,12 @@ export default function GestionMesas() {
   const [mesaEditando, setMesaEditando] = useState(null);
   const [success, setSuccess] = useState('');
 
+  // Nuevos estados para filtro de fecha
+  const [fechaFiltro, setFechaFiltro] = useState(() => new Date().toISOString().slice(0, 10));
+  const [horaFiltro, setHoraFiltro] = useState('');
+  const [reservasPorFecha, setReservasPorFecha] = useState([]);
+  const [mostrarDisponibilidad, setMostrarDisponibilidad] = useState(true);
+
   useEffect(() => {
     cargarMesas();
     // Auto-actualizar cada 30 segundos
@@ -17,10 +23,17 @@ export default function GestionMesas() {
     return () => clearInterval(interval);
   }, []);
 
+  // Cargar reservas cuando cambia la fecha
+  useEffect(() => {
+    if (mostrarDisponibilidad) {
+      cargarReservasPorFecha();
+    }
+  }, [fechaFiltro, mostrarDisponibilidad]);
+
   const cargarMesas = async () => {
     try {
       setLoading(true);
-      const data = await getMesas();
+      const data = await getMesas({ fecha: mostrarDisponibilidad ? fechaFiltro : undefined, hora: mostrarDisponibilidad ? horaFiltro : undefined });
       setMesas(data);
       setError('');
     } catch (err) {
@@ -31,11 +44,40 @@ export default function GestionMesas() {
     }
   };
 
+  const cargarReservasPorFecha = async () => {
+    try {
+      const reservas = await getReservas({ fecha: fechaFiltro });
+      const filtradasPorHora = horaFiltro
+        ? reservas.filter(r => r.hora && r.hora.startsWith(horaFiltro))
+        : reservas;
+      setReservasPorFecha(filtradasPorHora);
+    } catch (err) {
+      console.error('Error al cargar reservas:', err);
+      setReservasPorFecha([]);
+    }
+  };
+
   const handleCambiarEstado = async (mesaId, nuevoEstado) => {
     // FIX #34 (MENOR): Transacciones atómicas en frontend
     // Guardar estado anterior en caso de fallo
     const estadoAnteriorMesas = [...mesas];
     const mesaAnterior = mesas.find(m => m.id === mesaId);
+
+    // Si hay reservas en la fecha/hora seleccionada, advertir antes de liberar/ocupar
+    if (mostrarDisponibilidad && (nuevoEstado === 'disponible' || nuevoEstado === 'ocupada')) {
+      const reservasMesa = getReservasMesa(mesaAnterior?.numero || mesaId);
+      if (reservasMesa.length > 0) {
+        const hayChoqueHora = horaFiltro
+          ? reservasMesa.some(r => r.hora && r.hora.startsWith(horaFiltro))
+          : true;
+        if (hayChoqueHora) {
+          const continuar = window.confirm(
+            `Esta mesa tiene reservas para ${fechaFiltro}${horaFiltro ? ` a las ${horaFiltro}` : ''}. ¿Seguro desea marcarla como ${nuevoEstado}?`
+          );
+          if (!continuar) return;
+        }
+      }
+    }
 
     try {
       // Paso 1: Actualizar estado en el backend (operación crítica)
@@ -88,6 +130,18 @@ export default function GestionMesas() {
       limpieza: 'bi-droplet'
     };
     return iconos[estado] || 'bi-question-circle';
+  };
+
+  // Función para obtener reservas de una mesa en la fecha seleccionada
+  const getReservasMesa = (numeroMesa) => {
+    if (!mostrarDisponibilidad) return [];
+    const mesaFormatted = `M${String(numeroMesa).padStart(2, '0')}`;
+    return reservasPorFecha.filter(r => r.mesa === mesaFormatted);
+  };
+
+  // Función para verificar si una mesa tiene reservas en la fecha
+  const tieneReservas = (numeroMesa) => {
+    return getReservasMesa(numeroMesa).length > 0;
   };
 
   const mesasFiltradas = filtroEstado === 'TODOS'
@@ -143,43 +197,130 @@ export default function GestionMesas() {
       )}
 
       {/* Filtros */}
-      <div className="mb-4">
-        <div className="btn-group" role="group">
-          <button
-            type="button"
-            className={`btn ${filtroEstado === 'TODOS' ? 'btn-primary' : 'btn-outline-primary'}`}
-            onClick={() => setFiltroEstado('TODOS')}
-          >
-            TODOS
-          </button>
-          <button
-            type="button"
-            className={`btn ${filtroEstado === 'DISPONIBLE' ? 'btn-success' : 'btn-outline-success'}`}
-            onClick={() => setFiltroEstado('DISPONIBLE')}
-          >
-            DISPONIBLE
-          </button>
-          <button
-            type="button"
-            className={`btn ${filtroEstado === 'RESERVADA' ? 'btn-warning' : 'btn-outline-warning'}`}
-            onClick={() => setFiltroEstado('RESERVADA')}
-          >
-            RESERVADA
-          </button>
-          <button
-            type="button"
-            className={`btn ${filtroEstado === 'OCUPADA' ? 'btn-danger' : 'btn-outline-danger'}`}
-            onClick={() => setFiltroEstado('OCUPADA')}
-          >
-            OCUPADA
-          </button>
-          <button
-            type="button"
-            className={`btn ${filtroEstado === 'LIMPIEZA' ? 'btn-info' : 'btn-outline-info'}`}
-            onClick={() => setFiltroEstado('LIMPIEZA')}
-          >
-            EN LIMPIEZA
-          </button>
+      <div className="card border-0 shadow-sm mb-4">
+        <div className="card-body">
+          <div className="row g-3">
+            {/* Filtro de Estado */}
+            <div className="col-12">
+              <label className="form-label small fw-bold">Filtrar por Estado Actual:</label>
+              <div className="btn-group d-flex flex-wrap" role="group">
+                <button
+                  type="button"
+                  className={`btn ${filtroEstado === 'TODOS' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => setFiltroEstado('TODOS')}
+                >
+                  TODOS
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${filtroEstado === 'DISPONIBLE' ? 'btn-success' : 'btn-outline-success'}`}
+                  onClick={() => setFiltroEstado('DISPONIBLE')}
+                >
+                  DISPONIBLE
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${filtroEstado === 'RESERVADA' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => setFiltroEstado('RESERVADA')}
+                >
+                  RESERVADA
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${filtroEstado === 'OCUPADA' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  onClick={() => setFiltroEstado('OCUPADA')}
+                >
+                  OCUPADA
+                </button>
+                <button
+                  type="button"
+                  className={`btn ${filtroEstado === 'LIMPIEZA' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setFiltroEstado('LIMPIEZA')}
+                >
+                  EN LIMPIEZA
+                </button>
+              </div>
+            </div>
+
+            {/* Toggle para mostrar disponibilidad */}
+            <div className="col-12 border-top pt-3">
+              <div className="d-flex flex-wrap align-items-center gap-3">
+                <div className="form-check form-switch mb-0">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="toggleDisponibilidad"
+                    checked={mostrarDisponibilidad}
+                    onChange={(e) => setMostrarDisponibilidad(e.target.checked)}
+                  />
+                  <label className="form-check-label fw-bold" htmlFor="toggleDisponibilidad">
+                    <i className="bi bi-calendar3 me-2"></i>
+                    Ver disponibilidad por fecha/hora
+                  </label>
+                </div>
+                {mostrarDisponibilidad && (
+                  <div className="d-flex flex-wrap align-items-center gap-2">
+                    <span className="badge rounded-pill bg-light text-dark">
+                      <i className="bi bi-calendar-check me-1"></i>
+                      {new Date(fechaFiltro + 'T00:00:00').toLocaleDateString('es-ES', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short'
+                      })}
+                    </span>
+                    {horaFiltro && (
+                      <span className="badge rounded-pill bg-info text-white">
+                        <i className="bi bi-clock me-1"></i>
+                        {horaFiltro}
+                      </span>
+                    )}
+                    <button
+                      className="btn btn-link btn-sm text-decoration-none"
+                      onClick={() => {
+                        setHoraFiltro('');
+                        setFechaFiltro(new Date().toISOString().slice(0, 10));
+                      }}
+                    >
+                      Limpiar filtros de tiempo
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Filtro de Fecha y Hora */}
+            {mostrarDisponibilidad && (
+              <>
+                <div className="col-md-6">
+                  <label htmlFor="fechaFiltro" className="form-label small">
+                    Fecha a consultar:
+                  </label>
+                  <input
+                    type="date"
+                    id="fechaFiltro"
+                    className="form-control"
+                    value={fechaFiltro}
+                    onChange={(e) => setFechaFiltro(e.target.value)}
+                  />
+                </div>
+                <div className="col-md-6">
+                  <label htmlFor="horaFiltro" className="form-label small">
+                    Hora (opcional):
+                  </label>
+                  <input
+                    type="time"
+                    id="horaFiltro"
+                    className="form-control"
+                    value={horaFiltro}
+                    onChange={(e) => setHoraFiltro(e.target.value)}
+                  />
+                  <small className="text-muted">
+                    Filtra reservas y disponibilidad en una hora específica
+                  </small>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -241,13 +382,61 @@ export default function GestionMesas() {
                     <i className="bi bi-people me-2 text-primary"></i>
                     <strong>Capacidad:</strong> {mesa.capacidad} personas
                   </div>
-                  <div className="mb-3">
-                    <i className="bi bi-info-circle me-2 text-primary"></i>
-                    <strong>Estado:</strong>{' '}
+                  <div className="mb-3 d-flex align-items-center gap-2 flex-wrap">
                     <span className={`badge bg-${getEstadoColor(mesa.estado)}`}>
                       {mesa.estado.toUpperCase()}
                     </span>
+                    {mostrarDisponibilidad && (
+                      <span className="badge bg-light text-muted border">
+                        <i className="bi bi-calendar3 me-1"></i>
+                        {new Date(fechaFiltro + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        {horaFiltro && <> · {horaFiltro}</>}
+                      </span>
+                    )}
                   </div>
+
+                  {/* Mostrar reservas si está activo el modo de disponibilidad */}
+                  {mostrarDisponibilidad && (
+                    <div className="mb-3 border-top pt-2">
+                      {(() => {
+                        const reservas = getReservasMesa(mesa.numero);
+                        const hayReservaEnHora = horaFiltro
+                          ? reservas.some(r => r.hora && r.hora.startsWith(horaFiltro))
+                          : reservas.length > 0;
+                        return reservas.length > 0 ? (
+                          <>
+                            <div className="d-flex align-items-center mb-2">
+                              <i className="bi bi-calendar-event me-2 text-warning"></i>
+                              <strong className="small">
+                                Reservas para {new Date(fechaFiltro + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                {horaFiltro && ` a las ${horaFiltro}`}
+                              </strong>
+                            </div>
+                            <div className="list-group list-group-flush small">
+                              {reservas.map((reserva, idx) => (
+                                <div key={idx} className="list-group-item px-0 py-1 border-0">
+                                  <i className="bi bi-clock text-muted me-1"></i>
+                                  <strong>{reserva.hora}</strong> - {reserva.personas} pers.
+                                  <span className={`badge bg-${
+                                    reserva.estado === 'ACTIVA' ? 'success' :
+                                    reserva.estado === 'PENDIENTE' ? 'warning' :
+                                    reserva.estado === 'COMPLETADA' ? 'info' : 'secondary'
+                                  } ms-1 small`}>
+                                    {reserva.estado}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <div className={`alert ${hayReservaEnHora ? 'alert-warning' : 'alert-success'} py-2 mb-0 small`}>
+                            <i className="bi bi-check-circle me-1"></i>
+                            {hayReservaEnHora ? 'Reservas fuera de la hora seleccionada' : 'Sin reservas para esta fecha'}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {mesaEditando === mesa.id ? (
                     <div>

@@ -1,12 +1,80 @@
-body {
-    background-color: #f5f7fb;
+:root {
+    --brand-primary: #0d6efd;
+    --brand-surface: #f5f7fb;
+    --brand-accent: #6f42c1;
+    --brand-muted: #6c757d;
+    --chip-radius: 999px;
 }
 
-/* Estilos de badges de estado */
+body {
+    background-color: var(--brand-surface);
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #1b1f24;
+}
+
+.panel-controls {
+    position: sticky;
+    top: 72px;
+    z-index: 9;
+    border-radius: 1rem;
+    background: white;
+}
+
+.resumen-card {
+    border-radius: 1rem;
+}
+
+.resumen-card__icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(13, 110, 253, 0.1);
+    font-size: 1.25rem;
+}
+
+.badge-soft-primary {
+    background-color: rgba(13, 110, 253, 0.15);
+    color: var(--brand-primary);
+}
+
+.estado-chip {
+    border-radius: var(--chip-radius);
+    padding: 0.4rem 1rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.estado-chip--activa {
+    background: rgba(25, 135, 84, 0.15);
+    color: #198754;
+}
+
+.estado-chip--pendiente {
+    background: rgba(255, 193, 7, 0.2);
+    color: #a07902;
+}
+
+.estado-chip--completada {
+    background: rgba(13, 110, 253, 0.15);
+    color: var(--brand-primary);
+}
+
+.estado-chip--cancelada {
+    background: rgba(220, 53, 69, 0.15);
+    color: #dc3545;
+}
+
 .estado-badge {
     font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--chip-radius);
 }
 
 .estado-ACTIVA {
@@ -22,4 +90,112 @@ body {
 .estado-CANCELADA {
     background-color: #f8d7da;
     color: #842029;
+}
+
+.reserva-header-summary {
+    background: linear-gradient(135deg, #f8f9fa 0%, #eef1ff 100%);
+    border-left: 4px solid var(--brand-primary);
+}
+
+.summary-item {
+    transition: transform 0.2s ease;
+}
+
+.summary-item:hover {
+    transform: translateY(-2px);
+}
+
+.info-item {
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.2s ease;
+}
+
+.info-item:hover {
+    background: rgba(0, 0, 0, 0.025);
+}
+
+.reserva-card {
+    border: none;
+    border-radius: 1rem;
+}
+
+.reserva-card__timeline {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.reserva-card__timeline:last-of-type {
+    border-bottom: none;
+}
+
+.reserva-card__timeline-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(13, 110, 253, 0.12);
+    color: var(--brand-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pagination {
+    gap: 0.4rem;
+}
+
+.pagination .page-link {
+    border-radius: 0.65rem !important;
+    min-width: 36px;
+    text-align: center;
+    color: var(--brand-primary);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.pagination .page-link:hover {
+    background: rgba(13, 110, 253, 0.08);
+}
+
+.pagination .page-item.active .page-link {
+    background-color: var(--brand-primary);
+    border-color: var(--brand-primary);
+    color: #fff;
+}
+
+.panel-controls .btn-outline-secondary.btn-sm,
+.panel-controls .btn-outline-primary.btn-sm {
+    min-width: 44px;
+    justify-content: center;
+    display: inline-flex;
+}
+
+.btn-soft-danger {
+    background: rgba(220, 53, 69, 0.12);
+    color: #c82333;
+    border: none;
+    padding: 0.65rem 1rem;
+    font-weight: 600;
+}
+
+.btn-soft-danger:hover {
+    background: rgba(220, 53, 69, 0.2);
+    color: #a71d2a;
+}
+
+.toast-animated {
+    animation: toast-slide-in 0.3s ease-out;
+}
+
+@keyframes toast-slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }

@@ -54,14 +54,15 @@ export default function MisReservas() {
     }
   };
 
-  const getEstadoBadgeClass = (estado) => {
-    const badges = {
-      PENDIENTE: 'bg-warning',
-      ACTIVA: 'bg-success',
-      COMPLETADA: 'bg-secondary',
-      CANCELADA: 'bg-danger'
-    };
-    return badges[estado] || 'bg-secondary';
+  const estadoTag = (estado) => {
+    const base = (estado || '').toLowerCase();
+    return `estado-chip estado-chip--${base}`;
+  };
+  const estadoIconos = {
+    PENDIENTE: 'bi-clock-history',
+    ACTIVA: 'bi-lightning-charge-fill',
+    COMPLETADA: 'bi-check2-circle',
+    CANCELADA: 'bi-x-octagon-fill'
   };
 
   const formatearFecha = (fecha) => {
@@ -160,38 +161,65 @@ export default function MisReservas() {
         <div className="row">
           {reservas.map(reserva => (
             <div key={reserva.id} className="col-md-6 col-lg-4 mb-3">
-              <div className="card h-100 shadow-sm">
-                <div className="card-header d-flex justify-content-between align-items-center">
-                  <h5 className="mb-0">{reserva.mesa}</h5>
-                  <span className={`badge ${getEstadoBadgeClass(reserva.estado)}`}>
-                    {reserva.estado}
-                  </span>
+              <div className="card h-100 shadow-sm reserva-card">
+                <div className="card-body d-flex flex-column h-100">
+                  <div className="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                      <p className="text-muted small mb-1">Mesa</p>
+                      <h5 className="mb-0">{reserva.mesa}</h5>
+                    </div>
+                    <span className={estadoTag(reserva.estado)}>
+                      <i className={`bi ${estadoIconos[reserva.estado] || 'bi-info-circle'} me-2`}></i>
+                      {reserva.estado}
+                    </span>
+                  </div>
+
+                  <div className="reserva-card__timeline">
+                    <div className="reserva-card__timeline-icon">
+                      <i className="bi bi-calendar3"></i>
+                    </div>
+                    <div>
+                      <p className="mb-0 fw-semibold">{formatearFecha(reserva.fecha)}</p>
+                      <small className="text-muted">Fecha reservada</small>
+                    </div>
+                  </div>
+
+                  <div className="reserva-card__timeline">
+                    <div className="reserva-card__timeline-icon text-primary">
+                      <i className="bi bi-clock-history"></i>
+                    </div>
+                    <div>
+                      <p className="mb-0 fw-semibold">{formatearHora(reserva.hora)} hrs</p>
+                      <small className="text-muted">Horario estimado</small>
+                    </div>
+                  </div>
+
+                  <div className="d-flex align-items-center gap-2 mt-3">
+                    <span className="badge rounded-pill badge-soft-primary">
+                      <i className="bi bi-people-fill me-1"></i>
+                      {reserva.personas} {reserva.personas === 1 ? 'persona' : 'personas'}
+                    </span>
+                    <span className="badge rounded-pill bg-light text-muted">
+                      ID #{reserva.id}
+                    </span>
+                  </div>
+
+                  {reserva.estado === 'PENDIENTE' ? (
+                    <div className="mt-auto pt-3">
+                      <button
+                        className="btn btn-soft-danger w-100"
+                        onClick={() => handleCancelarReserva(reserva.id)}
+                      >
+                        <i className="bi bi-x-circle me-2"></i>
+                        Cancelar Reserva
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-auto pt-3 text-muted small">
+                      Última actualización: {formatearFecha(reserva.fecha)}
+                    </div>
+                  )}
                 </div>
-                <div className="card-body">
-                  <div className="mb-2">
-                    <i className="bi bi-calendar3 me-2 text-primary"></i>
-                    <strong>Fecha:</strong> {formatearFecha(reserva.fecha)}
-                  </div>
-                  <div className="mb-2">
-                    <i className="bi bi-clock me-2 text-primary"></i>
-                    <strong>Hora:</strong> {formatearHora(reserva.hora)} hrs
-                  </div>
-                  <div className="mb-2">
-                    <i className="bi bi-people me-2 text-primary"></i>
-                    <strong>Personas:</strong> {reserva.personas}
-                  </div>
-                </div>
-                {reserva.estado === 'PENDIENTE' && (
-                  <div className="card-footer bg-transparent">
-                    <button
-                      className="btn btn-sm btn-outline-danger w-100"
-                      onClick={() => handleCancelarReserva(reserva.id)}
-                    >
-                      <i className="bi bi-x-circle me-1"></i>
-                      Cancelar Reserva
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ))}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PanelReservas from "./components/PanelReservas";
 import LoginForm from "./components/LoginForm";
 import FormularioReserva from "./components/FormularioReserva";
@@ -20,6 +20,19 @@ function App() {
   const [activeTab, setActiveTab] = useState(() =>
     isAuthenticated ? getDefaultTab(user?.rol) : 'reservas-dia'
   );
+  const [hasInitializedTab, setHasInitializedTab] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && user?.rol && !hasInitializedTab) {
+      setActiveTab(getDefaultTab(user.rol));
+      setHasInitializedTab(true);
+    }
+
+    if (!isAuthenticated && hasInitializedTab) {
+      setHasInitializedTab(false);
+      setActiveTab('reservas-dia');
+    }
+  }, [isAuthenticated, user?.rol, hasInitializedTab]);
 
   const handleLoginSuccess = (userData) => {
     setShowLogin(false);

@@ -178,52 +178,117 @@ export function isAuthenticated() {
 
 /**
  * Obtener reservas con filtros opcionales
- * @param {Object} params - {fecha: 'YYYY-MM-DD' | 'today', estado: string}
+ * @param {Object} params - {fecha, estado, fecha_inicio, fecha_fin, page, page_size}
+ * @param {Object} options - { fetchAllPages?: boolean }
  * @returns {Array} - Lista de reservas
  */
-export async function getReservas({ fecha, estado } = {}) {
-  const params = new URLSearchParams();
+export async function getReservas(params = {}, options = {}) {
+  const {
+    fecha,
+    estado,
+    fecha_inicio,
+    fecha_fin,
+    fechaInicio,
+    fechaFin,
+    page,
+    page_size,
+    pageSize,
+  } = params;
+
+  const { fetchAllPages = true } = options;
+
+  const searchParams = new URLSearchParams();
 
   if (fecha === 'today') {
-    params.append('date', 'today');
+    searchParams.append('date', 'today');
   } else if (fecha) {
-    params.append('fecha_reserva', fecha);
+    searchParams.append('fecha_reserva', fecha);
+  }
+
+  const fechaInicioValue = fecha_inicio || fechaInicio;
+  const fechaFinValue = fecha_fin || fechaFin;
+
+  if (fechaInicioValue) {
+    searchParams.append('fecha_inicio', fechaInicioValue);
+  }
+
+  if (fechaFinValue) {
+    searchParams.append('fecha_fin', fechaFinValue);
   }
 
   if (estado && estado !== 'TODOS') {
-    params.append('estado', estado.toLowerCase());
+    searchParams.append('estado', estado.toLowerCase());
   }
 
-  const url = `${API_BASE_URL}/reservas/?${params.toString()}`;
+  if (page) {
+    searchParams.append('page', page);
+  }
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: getAuthHeaders(),
+  if (page_size || pageSize) {
+    searchParams.append('page_size', page_size || pageSize);
+  }
+
+  const baseUrl = `${API_BASE_URL}/reservas/`;
+  const initialUrl = `${baseUrl}?${searchParams.toString()}`;
+
+  const fetchPage = async (url) => {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error('Error al obtener reservas');
+    }
+
+    return response.json();
+  };
+
+  const normalizeUrl = (url) => {
+    if (!url) return null;
+    if (url.startsWith('http')) return url;
+    if (url.startsWith('/')) {
+      return `${API_BASE_URL}${url}`;
+    }
+    return `${API_BASE_URL}/${url}`;
+  };
+
+  let nextUrl = initialUrl;
+  const todasLasReservas = [];
+
+  do {
+    const data = await fetchPage(nextUrl);
+    const reservasPage = Array.isArray(data.results) ? data.results : data;
+    todasLasReservas.push(...reservasPage);
+
+    if (!fetchAllPages || !data.next) {
+      nextUrl = null;
+    } else {
+      nextUrl = normalizeUrl(data.next);
+    }
+  } while (nextUrl);
+
+  return todasLasReservas.map(reserva => {
+    const nombreNormalizado =
+      (reserva.cliente_nombre_completo && reserva.cliente_nombre_completo.trim() !== '')
+        ? reserva.cliente_nombre_completo
+        : (reserva.cliente_nombre && reserva.cliente_nombre.trim() !== '')
+          ? reserva.cliente_nombre
+          : reserva.cliente_username;
+
+    return {
+      id: reserva.id,
+      cliente: nombreNormalizado || 'Sin nombre',
+      cliente_telefono: reserva.cliente_telefono,
+      cliente_email: reserva.cliente_email,
+      cliente_rut: reserva.cliente_rut,
+      mesa: `M${String(reserva.mesa_numero).padStart(2, '0')}`,
+      fecha: reserva.fecha_reserva,
+      hora: formatearHora24(reserva.hora_inicio),
+      personas: reserva.num_personas,
+      estado: reserva.estado.toUpperCase(),
+    };
   });
-
-  if (!response.ok) {
-    throw new Error('Error al obtener reservas');
-  }
-
-  const data = await response.json();
-
-  // FIX: Backend ahora devuelve respuesta paginada con estructura {count, next, previous, results}
-  // Extraer el array de resultados
-  const reservas = data.results || data;
-
-  // Transformar datos del backend al formato que espera el frontend
-  return reservas.map(reserva => ({
-    id: reserva.id,
-    cliente: reserva.cliente_nombre || reserva.cliente_username,
-    cliente_telefono: reserva.cliente_telefono,
-    cliente_email: reserva.cliente_email,
-    cliente_rut: reserva.cliente_rut,
-    mesa: `M${String(reserva.mesa_numero).padStart(2, '0')}`,
-    fecha: reserva.fecha_reserva,
-    hora: formatearHora24(reserva.hora_inicio),
-    personas: reserva.num_personas,
-    estado: reserva.estado.toUpperCase(),
-  }));
 }
 
 /**
@@ -244,6 +309,31 @@ export async function updateEstadoReserva({ id, nuevoEstado }) {
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Error al actualizar estado de la reserva');
+  }
+
+  return response.json();
+}
+
+/**
+ * Actualizar una reserva completa
+ * @param {Object} params - {id: number, reservaData: Object}
+ * @returns {Object} - Reserva actualizada
+ */
+export async function updateReserva({ id, reservaData }) {
+  const response = await fetch(
+    `${API_BASE_URL}/reservas/${id}/`,
+    {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reservaData),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('Error del backend:', error);
+    const errorMsg = error.detail || error.error || JSON.stringify(error) || 'Error al actualizar reserva';
+    throw new Error(errorMsg);
   }
 
   return response.json();

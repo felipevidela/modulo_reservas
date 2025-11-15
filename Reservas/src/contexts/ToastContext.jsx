@@ -127,14 +127,13 @@ function Toast({ toast, onClose }) {
 
   return (
     <div
-      className="toast show"
+      className="toast show toast-animated"
       role="alert"
       aria-live="assertive"
       aria-atomic="true"
       style={{
         minWidth: '300px',
         maxWidth: '400px',
-        animation: 'slideInRight 0.3s ease-out',
       }}
     >
       <div className={`toast-header ${bgClass} text-white`}>
@@ -153,30 +152,3 @@ function Toast({ toast, onClose }) {
     </div>
   );
 }
-
-// Agregar animaciones CSS inline
-const style = document.createElement('style');
-style.textContent = `
-  @keyframes slideInRight {
-    from {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-    to {
-      transform: translateX(0);
-      opacity: 1;
-    }
-  }
-
-  @keyframes slideOutRight {
-    from {
-      transform: translateX(0);
-      opacity: 1;
-    }
-    to {
-      transform: translateX(100%);
-      opacity: 0;
-    }
-  }
-`;
-document.head.appendChild(style);
