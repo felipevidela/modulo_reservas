@@ -427,6 +427,35 @@ class MesaViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAdministrador]
         return [permission() for permission in permission_classes]
 
+    def perform_update(self, serializer):
+        """
+        FIX #2 (CRÍTICO): Validar reservas antes de cambiar estado de mesa manualmente.
+
+        IMPORTANTE: No permitir cambiar a 'disponible' si hay reservas activas/pendientes.
+        El estado de la mesa debe ser manejado automáticamente por el sistema de reservas.
+        """
+        from rest_framework.exceptions import ValidationError
+
+        mesa = self.get_object()
+        nuevo_estado = serializer.validated_data.get('estado')
+
+        # Si se está cambiando el estado de la mesa
+        if nuevo_estado and nuevo_estado != mesa.estado:
+            # Si se intenta marcar como 'disponible', verificar que no haya reservas activas
+            if nuevo_estado == 'disponible':
+                reservas_activas = Reserva.objects.filter(
+                    mesa=mesa,
+                    estado__in=['pendiente', 'activa']
+                ).exists()
+
+                if reservas_activas:
+                    raise ValidationError({
+                        'estado': 'No se puede marcar como disponible. La mesa tiene reservas pendientes o activas. '
+                                  'Cancele o complete las reservas primero.'
+                    })
+
+        serializer.save()
+
 
 class ConsultaMesasView(views.APIView):
     """
@@ -597,6 +626,31 @@ class ReservaViewSet(viewsets.ModelViewSet):
             # Guardar con validación completa (ejecuta model.clean())
             serializer.save()
 
+    def perform_destroy(self, instance):
+        """
+        FIX #6 (GRAVE): Al eliminar una reserva, actualizar estado de mesa.
+
+        IMPORTANTE: Solo marcar como disponible si no hay otras reservas activas/pendientes.
+        """
+        from django.db import transaction
+
+        with transaction.atomic():
+            mesa = instance.mesa
+
+            # Eliminar la reserva
+            instance.delete()
+
+            # Verificar si hay otras reservas activas/pendientes para esta mesa
+            otras_reservas_activas = Reserva.objects.filter(
+                mesa=mesa,
+                estado__in=['pendiente', 'activa']
+            ).exists()
+
+            # Solo marcar como disponible si no hay otras reservas
+            if not otras_reservas_activas:
+                mesa.estado = 'disponible'
+                mesa.save()
+
     @action(detail=True, methods=['patch'], permission_classes=[IsAdminOrCajero])
     def cambiar_estado(self, request, pk=None):
         """
@@ -604,48 +658,76 @@ class ReservaViewSet(viewsets.ModelViewSet):
         PATCH /api/reservas/{id}/cambiar_estado/
         Body: {estado: 'activa'|'completada'|'cancelada'|'pendiente'}
 
-        IMPORTANTE:
-        - Verifica otras reservas antes de cambiar estado de mesa
-        - Previene cancelación/modificación de reservas pasadas (Fix #5 CRÍTICO)
+        IMPORTANTE (Fase 3 fixes):
+        - #5 CRÍTICO: Previene cancelación de reservas pasadas
+        - #19 MODERADO: Valida transiciones de estado válidas
+        - #23 MODERADO: Locks para prevenir inconsistencias en cancelaciones múltiples
+        - #13 MODERADO: Solo cambia estado de mesa si reserva es para hoy/futuro cercano
         """
-        reserva = self.get_object()
-        nuevo_estado = request.data.get('estado')
+        from django.db import transaction
+        from datetime import date, timedelta
 
-        if nuevo_estado not in ['activa', 'completada', 'cancelada', 'pendiente']:
-            return Response(
-                {'error': 'Estado inválido'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # FIX #23 (MODERADO): Usar transacción con locks
+        with transaction.atomic():
+            # Bloquear la reserva y la mesa para prevenir race conditions
+            reserva = Reserva.objects.select_for_update().select_related('mesa').get(pk=pk)
+            nuevo_estado = request.data.get('estado')
 
-        # FIX #5 (CRÍTICO): Validar que no se cancelen reservas de fechas pasadas
-        from datetime import date
-        if reserva.fecha_reserva < date.today():
-            return Response(
-                {'error': 'No se pueden modificar reservas de fechas pasadas'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if nuevo_estado not in ['activa', 'completada', 'cancelada', 'pendiente']:
+                return Response(
+                    {'error': 'Estado inválido'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Actualizar estado de la reserva
-        reserva.estado = nuevo_estado
+            # FIX #5 (CRÍTICO): Validar que no se modifiquen reservas de fechas pasadas
+            if reserva.fecha_reserva < date.today():
+                return Response(
+                    {'error': 'No se pueden modificar reservas de fechas pasadas'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        # Actualizar estado de la mesa según el estado de la reserva
-        if nuevo_estado == 'activa':
-            reserva.mesa.estado = 'ocupada'
-        elif nuevo_estado in ['completada', 'cancelada']:
-            # IMPORTANTE: Solo marcar como disponible si no hay otras reservas activas/pendientes
-            otras_reservas_activas = Reserva.objects.filter(
-                mesa=reserva.mesa,
-                estado__in=['pendiente', 'activa']
-            ).exclude(id=reserva.id).exists()
+            # FIX #19 (MODERADO): Validar transiciones de estado válidas
+            transiciones_validas = {
+                'pendiente': ['activa', 'cancelada'],
+                'activa': ['completada', 'cancelada'],
+                'completada': [],  # Estado final, no se puede cambiar
+                'cancelada': []     # Estado final, no se puede cambiar
+            }
 
-            if not otras_reservas_activas:
-                reserva.mesa.estado = 'disponible'
-            # Si hay otras reservas, mantener el estado actual de la mesa
-        elif nuevo_estado == 'pendiente':
-            reserva.mesa.estado = 'reservada'
+            if nuevo_estado not in transiciones_validas.get(reserva.estado, []):
+                return Response({
+                    'error': f'Transición inválida de {reserva.estado} a {nuevo_estado}',
+                    'transiciones_validas': transiciones_validas.get(reserva.estado, [])
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        reserva.mesa.save()
-        reserva.save()
+            # Actualizar estado de la reserva
+            reserva.estado = nuevo_estado
 
-        serializer = self.get_serializer(reserva)
-        return Response(serializer.data)
+            # FIX #13 (MODERADO): Solo actualizar estado de mesa si la reserva es para hoy o futuro cercano
+            # No tiene sentido cambiar el estado de la mesa por una reserva de dentro de 2 meses
+            fecha_limite = date.today() + timedelta(days=1)  # Hoy o mañana
+            debe_actualizar_mesa = reserva.fecha_reserva <= fecha_limite
+
+            if debe_actualizar_mesa:
+                # Actualizar estado de la mesa según el estado de la reserva
+                if nuevo_estado == 'activa':
+                    reserva.mesa.estado = 'ocupada'
+                elif nuevo_estado in ['completada', 'cancelada']:
+                    # IMPORTANTE: Solo marcar como disponible si no hay otras reservas activas/pendientes
+                    otras_reservas_activas = Reserva.objects.filter(
+                        mesa=reserva.mesa,
+                        estado__in=['pendiente', 'activa']
+                    ).exclude(id=reserva.id).exists()
+
+                    if not otras_reservas_activas:
+                        reserva.mesa.estado = 'disponible'
+                    # Si hay otras reservas, mantener el estado actual de la mesa
+                elif nuevo_estado == 'pendiente':
+                    reserva.mesa.estado = 'reservada'
+
+                reserva.mesa.save()
+
+            reserva.save()
+
+            serializer = self.get_serializer(reserva)
+            return Response(serializer.data)
