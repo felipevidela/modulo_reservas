@@ -2,6 +2,7 @@ from django.shortcuts import render
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.utils import timezone
+import logging
 
 from rest_framework import viewsets, views, status, filters
 from rest_framework.response import Response
@@ -560,6 +561,9 @@ class ReservaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['fecha_reserva', 'hora_inicio', 'created_at']
     ordering = ['-fecha_reserva', '-hora_inicio']
 
+    # FIX #21 (MODERADO): Logger para auditoría
+    audit_logger = logging.getLogger('mainApp.audit')
+
     def get_permissions(self):
         if self.action in ['create']:
             # Cualquier usuario autenticado puede crear reserva
@@ -619,6 +623,13 @@ class ReservaViewSet(viewsets.ModelViewSet):
 
             # Guardar la reserva
             reserva = serializer.save(cliente=self.request.user)
+
+            # FIX #21: Logging de auditoría
+            self.audit_logger.info(
+                f"RESERVA_CREADA: ID={reserva.id}, Usuario={self.request.user.username}, "
+                f"Mesa={reserva.mesa.numero}, Fecha={reserva.fecha_reserva}, "
+                f"Hora={reserva.hora_inicio}-{reserva.hora_fin}, Personas={reserva.num_personas}"
+            )
 
             # Actualizar estado de la mesa
             if mesa.estado == 'disponible':
@@ -728,6 +739,7 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             # Actualizar estado de la reserva
+            estado_anterior = reserva.estado  # Guardar para logging
             reserva.estado = nuevo_estado
 
             # FIX #13 (MODERADO): Solo actualizar estado de mesa si la reserva es para hoy o futuro cercano
@@ -755,6 +767,13 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 reserva.mesa.save()
 
             reserva.save()
+
+            # FIX #21: Logging de auditoría
+            self.audit_logger.info(
+                f"ESTADO_CAMBIADO: Reserva_ID={reserva.id}, Usuario={request.user.username}, "
+                f"Estado_Anterior={estado_anterior}, Estado_Nuevo={nuevo_estado}, "
+                f"Mesa={reserva.mesa.numero}, Fecha={reserva.fecha_reserva}"
+            )
 
             serializer = self.get_serializer(reserva)
             return Response(serializer.data)
