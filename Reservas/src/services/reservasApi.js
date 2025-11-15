@@ -269,6 +269,32 @@ export async function createReserva(reservaData) {
 }
 
 /**
+ * Obtener horas disponibles para una fecha y número de personas
+ * @param {Object} params - {fecha: string (YYYY-MM-DD), personas: number}
+ * @returns {Object} - {horas_disponibles: Array, horas_no_disponibles: Array, ...}
+ */
+export async function getHorasDisponibles({ fecha, personas = 1 } = {}) {
+  const params = new URLSearchParams();
+  if (fecha) params.append('fecha', fecha);
+  if (personas) params.append('personas', personas.toString());
+
+  const response = await fetch(
+    `${API_BASE_URL}/horas-disponibles/?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Error al obtener horas disponibles');
+  }
+
+  return response.json();
+}
+
+/**
  * Obtener todas las mesas
  * @param {Object} params - {estado: string, fecha: string, hora: string} (opcional)
  * @returns {Array} - Lista de mesas

@@ -30,6 +30,7 @@ urlpatterns = [
 
     # Endpoints personalizados
     path('api/consultar-mesas/', views.ConsultaMesasView.as_view(), name='consultar-mesas'),
+    path('api/horas-disponibles/', views.ConsultarHorasDisponiblesView.as_view(), name='horas-disponibles'),
 
     # Incluir las rutas generadas por el router (mesas y reservas)
     path('api/', include(router.urls)),
