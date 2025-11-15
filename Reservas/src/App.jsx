@@ -7,7 +7,7 @@ import MiPerfil from "./components/MiPerfil";
 import GestionMesas from "./components/GestionMesas";
 import GestionUsuarios from "./components/GestionUsuarios";
 import ReservaPublica from "./components/ReservaPublica";
-import { getCurrentUser, isAuthenticated, logout } from './services/reservasApi';
+import { useAuth } from './contexts/AuthContext';
 
 const getDefaultTab = (rol) => {
   if (rol === 'cliente') return 'mis-reservas';
@@ -15,40 +15,28 @@ const getDefaultTab = (rol) => {
 };
 
 function App() {
-  const initialUser = isAuthenticated() ? getCurrentUser() : null;
-  const [user, setUser] = useState(initialUser);
-  const [isLoggedIn, setIsLoggedIn] = useState(Boolean(initialUser));
+  const { user, isAuthenticated, logout: authLogout, registerAndLogin } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [activeTab, setActiveTab] = useState(() =>
-    initialUser ? getDefaultTab(initialUser.rol) : 'reservas-dia'
+    isAuthenticated ? getDefaultTab(user?.rol) : 'reservas-dia'
   );
 
   const handleLoginSuccess = (userData) => {
-    const newUser = {
-      id: userData.user_id,
-      username: userData.username,
-      email: userData.email,
-      rol: userData.rol,
-      rol_display: userData.rol_display,
-      nombre_completo: userData.nombre_completo
-    };
-    setUser(newUser);
-    setIsLoggedIn(true);
     setShowLogin(false);
     setActiveTab(getDefaultTab(userData.rol));
   };
 
   const handleLogout = () => {
-    logout();
-    setUser(null);
-    setIsLoggedIn(false);
+    authLogout();
     setShowLogin(false);
     setActiveTab('reservas-dia');
   };
 
   const handleReservaExitosa = (result) => {
     // La reserva pública ya hace auto-login
-    handleLoginSuccess(result);
+    registerAndLogin(result);
+    setShowLogin(false);
+    setActiveTab(getDefaultTab(result.rol));
   };
 
   // Configuración de tabs según rol
@@ -102,7 +90,7 @@ function App() {
   };
 
   // Vista pública (no logueado)
-  if (!isLoggedIn) {
+  if (!isAuthenticated) {
     // Mostrar LoginForm si el usuario hizo clic en "Login"
     if (showLogin) {
       return (

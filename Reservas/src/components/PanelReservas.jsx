@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { getReservas, updateEstadoReserva } from "../services/reservasApi";
+import Modal from "./ui/Modal";
+import { useToast } from "../contexts/ToastContext";
+import { formatErrorMessage } from "../utils/errorMessages";
 
 function PanelReservas({ user, onLogout }) {
     // Usar el rol real del usuario autenticado
     const rolActual = user?.rol || "cliente";
+    const toast = useToast();
 
     const [reservas, setReservas] = useState([]);
+    const [detalleModal, setDetalleModal] = useState({ isOpen: false, reserva: null });
 
     const [fecha, setFecha] = useState(() =>
         new Date().toISOString().slice(0, 10)
@@ -85,27 +90,28 @@ function PanelReservas({ user, onLogout }) {
                     r.id === id ? { ...r, estado: nuevoEstado } : r
                 )
             );
+
+            toast.success('Estado de la reserva actualizado correctamente');
         } catch (err) {
             console.error(err);
-            setError("No se pudo actualizar el estado de la reserva.");
+            const errorMsg = formatErrorMessage(err);
+            setError(errorMsg);
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
         }
     }
 
-    
+
     function renderAcciones(reserva) {
         // Admin
         if (rolActual === "admin") {
             return (
                 <button
                     className="btn btn-outline-secondary btn-sm"
-                    onClick={() =>
-                        alert(
-                            `Detalle de reserva #${reserva.id}\nCliente: ${reserva.cliente}\nMesa: ${reserva.mesa}\nHora: ${reserva.hora}`
-                        )
-                    }
+                    onClick={() => setDetalleModal({ isOpen: true, reserva })}
                 >
+                    <i className="bi bi-eye me-1"></i>
                     Ver detalle
                 </button>
             );
@@ -322,6 +328,53 @@ function PanelReservas({ user, onLogout }) {
                     </div>
                 </div>
             </div>
+
+            {/* Modal de detalle de reserva */}
+            {detalleModal.reserva && (
+                <Modal
+                    isOpen={detalleModal.isOpen}
+                    onClose={() => setDetalleModal({ isOpen: false, reserva: null })}
+                    title={`Detalle de Reserva #${detalleModal.reserva.id}`}
+                    size="md"
+                >
+                    <div className="mb-3">
+                        <strong className="text-muted">Cliente:</strong>
+                        <p className="mb-2">{detalleModal.reserva.cliente}</p>
+                    </div>
+                    <div className="mb-3">
+                        <strong className="text-muted">Mesa:</strong>
+                        <p className="mb-2">{detalleModal.reserva.mesa}</p>
+                    </div>
+                    <div className="mb-3">
+                        <strong className="text-muted">Fecha:</strong>
+                        <p className="mb-2">{detalleModal.reserva.fecha}</p>
+                    </div>
+                    <div className="mb-3">
+                        <strong className="text-muted">Hora:</strong>
+                        <p className="mb-2">{formatearHora(detalleModal.reserva.hora)} hrs</p>
+                    </div>
+                    <div className="mb-3">
+                        <strong className="text-muted">Personas:</strong>
+                        <p className="mb-2">{detalleModal.reserva.personas}</p>
+                    </div>
+                    <div className="mb-3">
+                        <strong className="text-muted">Estado:</strong>
+                        <p className="mb-2">
+                            <span className={`estado-badge estado-${detalleModal.reserva.estado}`}>
+                                {detalleModal.reserva.estado}
+                            </span>
+                        </p>
+                    </div>
+                    <div className="d-flex justify-content-end">
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => setDetalleModal({ isOpen: false, reserva: null })}
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </Modal>
+            )}
         </div>
     );
 }
