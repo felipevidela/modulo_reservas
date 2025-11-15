@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getReservas, updateEstadoReserva } from '../services/reservasApi';
+import { ConfirmModal } from './ui/Modal';
+import { useToast } from '../contexts/ToastContext';
+import { formatErrorMessage } from '../utils/errorMessages';
 
 export default function MisReservas() {
+  const toast = useToast();
   const [reservas, setReservas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('TODOS');
+  const [cancelModal, setCancelModal] = useState({ isOpen: false, reservaId: null, isLoading: false });
 
   const cargarReservas = useCallback(async () => {
     try {
@@ -30,17 +35,21 @@ export default function MisReservas() {
     return () => clearInterval(interval);
   }, [cargarReservas]);
 
-  const handleCancelarReserva = async (reservaId) => {
-    if (!confirm('¿Está seguro que desea cancelar esta reserva?')) {
-      return;
-    }
+  const handleCancelarReserva = (reservaId) => {
+    setCancelModal({ isOpen: true, reservaId, isLoading: false });
+  };
 
+  const confirmCancelarReserva = async () => {
     try {
-      await updateEstadoReserva({ id: reservaId, nuevoEstado: 'cancelada' });
+      setCancelModal(prev => ({ ...prev, isLoading: true }));
+      await updateEstadoReserva({ id: cancelModal.reservaId, nuevoEstado: 'cancelada' });
       await cargarReservas();
-      alert('Reserva cancelada exitosamente');
+      toast.success('Reserva cancelada exitosamente');
+      setCancelModal({ isOpen: false, reservaId: null, isLoading: false });
     } catch (err) {
-      alert('Error al cancelar la reserva: ' + err.message);
+      const errorMsg = formatErrorMessage(err);
+      toast.error(errorMsg);
+      setCancelModal(prev => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -194,6 +203,19 @@ export default function MisReservas() {
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmación para cancelar reserva */}
+      <ConfirmModal
+        isOpen={cancelModal.isOpen}
+        onClose={() => setCancelModal({ isOpen: false, reservaId: null, isLoading: false })}
+        onConfirm={confirmCancelarReserva}
+        title="Cancelar Reserva"
+        message="¿Está seguro que desea cancelar esta reserva? Esta acción no se puede deshacer."
+        confirmText="Sí, cancelar"
+        cancelText="No, mantener"
+        confirmVariant="danger"
+        isLoading={cancelModal.isLoading}
+      />
     </div>
   );
 }
