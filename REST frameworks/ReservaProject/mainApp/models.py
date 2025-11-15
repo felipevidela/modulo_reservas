@@ -74,11 +74,26 @@ class Reserva(models.Model):
         return f"Reserva {self.id} - {self.cliente.username} - Mesa {self.mesa.numero} ({self.fecha_reserva})"
 
     def clean(self):
-        """Validar que la mesa esté disponible en la fecha y hora solicitada"""
+        """
+        Validar que la mesa esté disponible en la fecha y hora solicitada.
+
+        FIX #6 (MODERADO): Valida hora pasada en día actual
+        FIX #1 (CRÍTICO): Valida solapamiento de horarios
+        """
+        from datetime import date, datetime
+
         # Validar que la fecha no sea en el pasado
-        from datetime import date
         if self.fecha_reserva < date.today():
             raise ValidationError("No se pueden crear reservas para fechas pasadas")
+
+        # FIX #15 (MODERADO): Validar que la hora no sea pasada si la fecha es hoy
+        if self.fecha_reserva == date.today():
+            hora_actual = datetime.now().time()
+            if self.hora_inicio < hora_actual:
+                raise ValidationError(
+                    f"No se pueden crear reservas para horas pasadas. "
+                    f"La hora actual es {hora_actual.strftime('%H:%M')}"
+                )
 
         # Validar capacidad de la mesa
         if self.num_personas > self.mesa.capacidad:
@@ -126,5 +141,18 @@ class Reserva(models.Model):
             models.Index(fields=['fecha_reserva', 'estado']),
             models.Index(fields=['estado']),
             models.Index(fields=['-fecha_reserva', '-hora_inicio']),
+        ]
+        # FIX #10 (GRAVE): Agregar constraints a nivel de base de datos
+        constraints = [
+            # Validar que num_personas sea >= 1
+            models.CheckConstraint(
+                check=models.Q(num_personas__gte=1),
+                name='num_personas_minimo_1'
+            ),
+            # Validar que num_personas no exceda límite razonable
+            models.CheckConstraint(
+                check=models.Q(num_personas__lte=50),
+                name='num_personas_maximo_50'
+            ),
         ]
 

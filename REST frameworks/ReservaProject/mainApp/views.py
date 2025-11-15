@@ -129,17 +129,24 @@ def register_and_reserve(request):
 
             user = user_serializer.save()
 
-            # 2. Crear reserva
+            # 2. Bloquear la mesa PRIMERO para evitar race conditions
+            mesa_id = reserva_data.get('mesa')
+            if not mesa_id:
+                return Response({
+                    'error': 'Debe seleccionar una mesa',
+                    'details': {'mesa': ['Este campo es requerido']}
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            mesa = Mesa.objects.select_for_update().get(id=mesa_id)
+
+            # 3. IMPORTANTE: Validar DESPUÉS de obtener el lock
+            # Esto previene que dos usuarios reserven la misma mesa simultáneamente
             reserva_serializer = ReservaSerializer(data=reserva_data)
             if not reserva_serializer.is_valid():
                 return Response({
                     'error': 'Datos de reserva inválidos',
                     'details': reserva_serializer.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
-
-            # 2.5. Bloquear la mesa para evitar race conditions
-            mesa_id = reserva_data.get('mesa')
-            mesa = Mesa.objects.select_for_update().get(id=mesa_id)
 
             reserva = reserva_serializer.save(cliente=user)
 
@@ -561,6 +568,35 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 mesa.estado = 'reservada'
                 mesa.save()
 
+    def perform_update(self, serializer):
+        """
+        IMPORTANTE: Al actualizar una reserva, validar solapamientos y fecha pasada.
+
+        Fix para #1 (CRÍTICO) y #3 (CRÍTICO):
+        - Valida solapamiento de horarios en UPDATE/PATCH
+        - Valida que no se modifiquen reservas de fechas pasadas
+        """
+        from django.db import transaction
+        from datetime import date
+        from rest_framework.exceptions import ValidationError
+
+        reserva = self.get_object()
+
+        # Validar que no se actualice una reserva de fecha pasada
+        if reserva.fecha_reserva < date.today():
+            raise ValidationError({
+                'fecha_reserva': 'No se pueden modificar reservas de fechas pasadas'
+            })
+
+        with transaction.atomic():
+            # Si se está cambiando la mesa, bloquear la nueva mesa
+            if 'mesa' in serializer.validated_data:
+                nueva_mesa_id = serializer.validated_data['mesa'].id
+                nueva_mesa = Mesa.objects.select_for_update().get(id=nueva_mesa_id)
+
+            # Guardar con validación completa (ejecuta model.clean())
+            serializer.save()
+
     @action(detail=True, methods=['patch'], permission_classes=[IsAdminOrCajero])
     def cambiar_estado(self, request, pk=None):
         """
@@ -568,7 +604,9 @@ class ReservaViewSet(viewsets.ModelViewSet):
         PATCH /api/reservas/{id}/cambiar_estado/
         Body: {estado: 'activa'|'completada'|'cancelada'|'pendiente'}
 
-        IMPORTANTE: Verifica otras reservas antes de cambiar estado de mesa
+        IMPORTANTE:
+        - Verifica otras reservas antes de cambiar estado de mesa
+        - Previene cancelación/modificación de reservas pasadas (Fix #5 CRÍTICO)
         """
         reserva = self.get_object()
         nuevo_estado = request.data.get('estado')
@@ -576,6 +614,14 @@ class ReservaViewSet(viewsets.ModelViewSet):
         if nuevo_estado not in ['activa', 'completada', 'cancelada', 'pendiente']:
             return Response(
                 {'error': 'Estado inválido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # FIX #5 (CRÍTICO): Validar que no se cancelen reservas de fechas pasadas
+        from datetime import date
+        if reserva.fecha_reserva < date.today():
+            return Response(
+                {'error': 'No se pueden modificar reservas de fechas pasadas'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
