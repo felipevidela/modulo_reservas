@@ -521,9 +521,37 @@ class ConsultaMesasView(views.APIView):
 class ReservaViewSet(viewsets.ModelViewSet):
     """
     ViewSet para el CRUD de Reservas.
+
+    Permisos:
     - Admin y Cajero: acceso completo
     - Cliente: solo sus propias reservas
-    - Filtros: fecha, estado
+
+    FIX #22 (MODERADO): Documentación de filtros disponibles
+
+    Filtros disponibles:
+    1. Por campos estándar (Django Filter Backend):
+       - ?estado=activa         Filtra por estado (pendiente|activa|completada|cancelada)
+       - ?fecha_reserva=2025-11-15  Filtra por fecha específica (formato YYYY-MM-DD)
+       - ?mesa=5                Filtra por número de mesa
+
+    2. Filtro especial por fecha relativa:
+       - ?date=today            Reservas de hoy
+
+    3. Ordenamiento:
+       - ?ordering=fecha_reserva        Ordena ascendente por fecha
+       - ?ordering=-fecha_reserva       Ordena descendente por fecha
+       - ?ordering=hora_inicio          Ordena por hora de inicio
+
+    4. Paginación (50 elementos por página):
+       - ?page=2                Segunda página de resultados
+
+    Ejemplos de uso:
+    - GET /api/reservas/?estado=activa&date=today
+      → Reservas activas del día actual
+    - GET /api/reservas/?fecha_reserva=2025-11-15&mesa=5
+      → Reservas de la mesa 5 en fecha específica
+    - GET /api/reservas/?ordering=-created_at&page=1
+      → Primera página de reservas ordenadas por fecha de creación descendente
     """
     queryset = Reserva.objects.all()
     serializer_class = ReservaSerializer

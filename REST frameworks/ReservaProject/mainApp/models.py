@@ -158,6 +158,8 @@ class Reserva(models.Model):
             models.Index(fields=['fecha_reserva', 'estado']),
             models.Index(fields=['estado']),
             models.Index(fields=['-fecha_reserva', '-hora_inicio']),
+            # FIX #33 (MENOR): Índice compuesto para queries por cliente y fecha
+            models.Index(fields=['cliente', 'fecha_reserva'], name='idx_cliente_fecha'),
         ]
         # FIX #10 (GRAVE): Agregar constraints a nivel de base de datos
         constraints = [

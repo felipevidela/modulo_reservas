@@ -48,6 +48,13 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-change-this-ke
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
+# FIX #29 (MODERADO): Validar que SECRET_KEY no sea el valor por defecto en producción
+if not DEBUG and SECRET_KEY == 'django-insecure-change-this-key':
+    raise ValueError(
+        "SECRET_KEY insegura detectada en producción. "
+        "Debes configurar la variable de entorno DJANGO_SECRET_KEY con una clave única y secreta."
+    )
+
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 
@@ -213,7 +220,10 @@ REST_FRAMEWORK = {
         'register': '5/hour',
         # Rate especial para login: 10 intentos por hora
         'login': '10/hour',
-    }
+    },
+    # FIX #14 (MODERADO): Paginación para mejorar rendimiento en listados
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,  # 50 elementos por página por defecto
 }
 
 # Configuración CORS para permitir el frontend React
@@ -235,6 +245,30 @@ else:
     ]
 
 CORS_ALLOW_CREDENTIALS = True
+
+# FIX #30 (MODERADO): Configuración CSRF correcta
+# CSRF Trusted Origins para permitir requests POST/PUT/DELETE desde frontend
+csrf_trusted_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+if csrf_trusted_env:
+    # Producción: desde variable de entorno
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_trusted_env.split(',')]
+else:
+    # Desarrollo: permitir localhost en diferentes puertos
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+    ]
+
+# Configuraciones adicionales de seguridad CSRF
+CSRF_COOKIE_SECURE = not DEBUG  # Cookie CSRF solo sobre HTTPS en producción
+CSRF_COOKIE_HTTPONLY = False  # False para que JavaScript pueda leer el token
+CSRF_COOKIE_SAMESITE = 'Lax'  # Protección contra CSRF
+SESSION_COOKIE_SECURE = not DEBUG  # Session cookie solo sobre HTTPS en producción
+SESSION_COOKIE_SAMESITE = 'Lax'
 
 # Configuración de django-encrypted-model-fields para encriptación
 # IMPORTANTE: Esta clave debe ser secreta en producción y guardarse en variables de entorno
