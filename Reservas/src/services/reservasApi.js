@@ -207,8 +207,12 @@ export async function getReservas({ fecha, estado } = {}) {
 
   const data = await response.json();
 
+  // FIX: Backend ahora devuelve respuesta paginada con estructura {count, next, previous, results}
+  // Extraer el array de resultados
+  const reservas = data.results || data;
+
   // Transformar datos del backend al formato que espera el frontend
-  return data.map(reserva => ({
+  return reservas.map(reserva => ({
     id: reserva.id,
     cliente: reserva.cliente_nombre || reserva.cliente_username,
     mesa: `M${String(reserva.mesa_numero).padStart(2, '0')}`,
