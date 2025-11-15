@@ -517,6 +517,107 @@ class ConsultaMesasView(views.APIView):
         return Response(serializer.data)
 
 
+class ConsultarHorasDisponiblesView(views.APIView):
+    """
+    Endpoint para consultar horas disponibles para una fecha y número de personas.
+    Mejora UX: permite al frontend mostrar solo horas disponibles en el dropdown.
+
+    GET /api/horas-disponibles/?fecha=2025-11-21&personas=2
+
+    Parámetros:
+    - fecha (requerido): Fecha en formato YYYY-MM-DD
+    - personas (opcional): Número de personas (default: 1)
+
+    Retorna:
+    {
+        "fecha": "2025-11-21",
+        "personas": 2,
+        "horas_disponibles": ["12:00", "12:30", "14:00", "19:00", ...],
+        "horas_no_disponibles": ["13:00", "13:30", "18:00", ...]
+    }
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from datetime import datetime, timedelta, time
+
+        fecha_str = request.query_params.get('fecha', None)
+        personas_str = request.query_params.get('personas', '1')
+
+        # Validar que se proporcione fecha
+        if not fecha_str:
+            return Response(
+                {'error': 'El parámetro "fecha" es requerido'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+            num_personas = int(personas_str)
+        except ValueError as e:
+            return Response(
+                {'error': f'Formato inválido: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Generar todas las horas disponibles (12:00 - 21:00 cada 30 min)
+        todas_las_horas = []
+        for hora in range(12, 22):  # 12:00 a 21:00 (última reserva a las 21:00)
+            for minuto in [0, 30]:
+                todas_las_horas.append(time(hora, minuto))
+
+        # Obtener mesas que cumplan con la capacidad requerida
+        mesas_suficientes = Mesa.objects.filter(capacidad__gte=num_personas)
+
+        if not mesas_suficientes.exists():
+            # No hay mesas con capacidad suficiente
+            return Response({
+                'fecha': fecha_str,
+                'personas': num_personas,
+                'horas_disponibles': [],
+                'horas_no_disponibles': [h.strftime('%H:%M') for h in todas_las_horas],
+                'mensaje': f'No hay mesas disponibles para {num_personas} personas'
+            })
+
+        horas_disponibles = []
+        horas_no_disponibles = []
+
+        # Verificar disponibilidad para cada hora
+        for hora_inicio in todas_las_horas:
+            # Calcular hora fin (2 horas después)
+            dt_inicio = datetime.combine(fecha, hora_inicio)
+            dt_fin = dt_inicio + timedelta(hours=2)
+            hora_fin = dt_fin.time()
+
+            # Buscar mesas ocupadas en este horario
+            mesas_ocupadas_ids = Reserva.objects.filter(
+                fecha_reserva=fecha,
+                estado__in=['pendiente', 'activa'],  # Solo reservas activas/pendientes
+            ).filter(
+                # Verificar solapamiento de horarios
+                Q(hora_inicio__lt=hora_fin) & Q(hora_fin__gt=hora_inicio)
+            ).values_list('mesa_id', flat=True)
+
+            # Verificar si hay al menos una mesa disponible con capacidad suficiente
+            mesas_disponibles = mesas_suficientes.exclude(id__in=mesas_ocupadas_ids)
+
+            hora_str = hora_inicio.strftime('%H:%M')
+            if mesas_disponibles.exists():
+                horas_disponibles.append(hora_str)
+            else:
+                horas_no_disponibles.append(hora_str)
+
+        return Response({
+            'fecha': fecha_str,
+            'personas': num_personas,
+            'horas_disponibles': horas_disponibles,
+            'horas_no_disponibles': horas_no_disponibles,
+            'total_horas': len(todas_las_horas),
+            'disponibles': len(horas_disponibles),
+            'no_disponibles': len(horas_no_disponibles)
+        })
+
+
 # ============ ENDPOINTS DE RESERVAS ============
 
 class ReservaViewSet(viewsets.ModelViewSet):

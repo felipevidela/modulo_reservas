@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getMesas, registerAndReserve } from '../services/reservasApi';
+import { getMesas, registerAndReserve, getHorasDisponibles } from '../services/reservasApi';
 import {
   validarEmail,
   validarPassword,
@@ -15,9 +15,14 @@ export default function ReservaPublica({ onReservaExitosa }) {
   const [mesas, setMesas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMesas, setLoadingMesas] = useState(false);
+  const [loadingHoras, setLoadingHoras] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [mostrarDatosPersonales, setMostrarDatosPersonales] = useState(false);
+
+  // Estados para horas disponibles
+  const [horasDisponibles, setHorasDisponibles] = useState([]);
+  const [horasNoDisponibles, setHorasNoDisponibles] = useState([]);
 
   // Estados para mostrar/ocultar contraseñas
   const [showPassword, setShowPassword] = useState(false);
@@ -42,12 +47,49 @@ export default function ReservaPublica({ onReservaExitosa }) {
 
   const [validationErrors, setValidationErrors] = useState({});
 
+  // Cargar horas disponibles cuando cambia fecha o número de personas
+  useEffect(() => {
+    if (formData.fecha_reserva && formData.num_personas) {
+      cargarHorasDisponibles();
+    } else {
+      // Reset horas si no hay fecha
+      setHorasDisponibles([]);
+      setHorasNoDisponibles([]);
+    }
+  }, [formData.fecha_reserva, formData.num_personas]);
+
   // Cargar mesas cuando se selecciona fecha, hora y personas
   useEffect(() => {
     if (formData.fecha_reserva && formData.hora_inicio && formData.num_personas) {
       cargarMesasDisponibles();
     }
   }, [formData.fecha_reserva, formData.hora_inicio, formData.num_personas]);
+
+  const cargarHorasDisponibles = async () => {
+    try {
+      setLoadingHoras(true);
+      const data = await getHorasDisponibles({
+        fecha: formData.fecha_reserva,
+        personas: formData.num_personas
+      });
+
+      setHorasDisponibles(data.horas_disponibles || []);
+      setHorasNoDisponibles(data.horas_no_disponibles || []);
+
+      // Si la hora seleccionada ya no está disponible, limpiarla
+      if (formData.hora_inicio && data.horas_no_disponibles?.includes(formData.hora_inicio)) {
+        setFormData(prev => ({ ...prev, hora_inicio: '' }));
+        setError('La hora seleccionada ya no está disponible. Por favor seleccione otra.');
+      }
+    } catch (err) {
+      console.error('Error al cargar horas disponibles:', err);
+      // En caso de error, generar todas las horas (fallback)
+      setHorasDisponibles([]);
+      setHorasNoDisponibles([]);
+    } finally {
+      setLoadingHoras(false);
+    }
+  };
 
   const cargarMesasDisponibles = async () => {
     try {
@@ -329,21 +371,34 @@ export default function ReservaPublica({ onReservaExitosa }) {
                     <label htmlFor="hora_inicio" className="form-label">
                       Hora de la Reserva <span className="text-danger">*</span>
                     </label>
-                    <select
-                      className={`form-select ${validationErrors.hora_inicio ? 'is-invalid' : ''}`}
-                      id="hora_inicio"
-                      name="hora_inicio"
-                      value={formData.hora_inicio}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="">Seleccione una hora</option>
-                      {generarOpcionesHora().map(hora => (
-                        <option key={hora} value={hora}>
-                          {hora} hrs
+                    {loadingHoras ? (
+                      <div className="text-center py-2">
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Consultando disponibilidad...
+                      </div>
+                    ) : (
+                      <select
+                        className={`form-select ${validationErrors.hora_inicio ? 'is-invalid' : ''}`}
+                        id="hora_inicio"
+                        name="hora_inicio"
+                        value={formData.hora_inicio}
+                        onChange={handleChange}
+                        required
+                        disabled={!formData.fecha_reserva}
+                      >
+                        <option value="">
+                          {formData.fecha_reserva ? 'Seleccione una hora' : 'Primero seleccione una fecha'}
                         </option>
-                      ))}
-                    </select>
+                        {generarOpcionesHora().map(hora => {
+                          const estaDisponible = !horasNoDisponibles.includes(hora);
+                          return (
+                            <option key={hora} value={hora} disabled={!estaDisponible}>
+                              {hora} hrs {!estaDisponible ? '(No disponible)' : ''}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    )}
                     {validationErrors.hora_inicio && (
                       <div className="invalid-feedback">{validationErrors.hora_inicio}</div>
                     )}
@@ -351,6 +406,12 @@ export default function ReservaPublica({ onReservaExitosa }) {
                       <i className="bi bi-info-circle me-1"></i>
                       La reserva tendrá una duración de 2 horas
                     </small>
+                    {formData.fecha_reserva && horasDisponibles.length === 0 && horasNoDisponibles.length > 0 && !loadingHoras && (
+                      <small className="text-warning d-block mt-1">
+                        <i className="bi bi-exclamation-triangle me-1"></i>
+                        No hay horarios disponibles para esta fecha. Intente con otra fecha.
+                      </small>
+                    )}
                   </div>
 
                   <div className="mb-3">
