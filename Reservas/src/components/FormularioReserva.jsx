@@ -20,20 +20,40 @@ export default function FormularioReserva({ onReservaCreada }) {
     cargarMesas();
   }, []);
 
+  // Recargar mesas cuando cambia fecha u hora
+  useEffect(() => {
+    if (formData.fecha_reserva && formData.hora_inicio) {
+      cargarMesasDisponibles();
+    }
+  }, [formData.fecha_reserva, formData.hora_inicio]);
+
   const cargarMesas = async () => {
     try {
-      const data = await getMesas({ estado: 'disponible' });
+      const data = await getMesas();
       setMesas(data);
     } catch (err) {
       console.error('Error al cargar mesas:', err);
-      // Si no hay mesas disponibles, cargar todas
-      try {
-        const todasMesas = await getMesas();
-        setMesas(todasMesas);
-      } catch (fallbackError) {
-        console.error('Error al cargar todas las mesas:', fallbackError);
-        setError('Error al cargar mesas');
+      setError('Error al cargar mesas');
+    }
+  };
+
+  const cargarMesasDisponibles = async () => {
+    try {
+      const data = await getMesas({
+        fecha: formData.fecha_reserva,
+        hora: formData.hora_inicio
+      });
+      setMesas(data);
+
+      // Si la mesa seleccionada ya no está disponible, limpiar selección
+      if (formData.mesa && !data.find(m => m.id === parseInt(formData.mesa))) {
+        setFormData(prev => ({ ...prev, mesa: '' }));
+        setError('La mesa seleccionada ya no está disponible para esta fecha y hora. Por favor seleccione otra.');
       }
+    } catch (err) {
+      console.error('Error al cargar mesas disponibles:', err);
+      // En caso de error, mostrar todas las mesas
+      cargarMesas();
     }
   };
 
