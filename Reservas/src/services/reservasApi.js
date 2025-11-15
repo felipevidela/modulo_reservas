@@ -266,12 +266,14 @@ export async function createReserva(reservaData) {
 
 /**
  * Obtener todas las mesas
- * @param {Object} params - {estado: string} (opcional)
+ * @param {Object} params - {estado: string, fecha: string, hora: string} (opcional)
  * @returns {Array} - Lista de mesas
  */
-export async function getMesas({ estado } = {}) {
+export async function getMesas({ estado, fecha, hora } = {}) {
   const params = new URLSearchParams();
   if (estado) params.append('estado', estado);
+  if (fecha) params.append('fecha', fecha);
+  if (hora) params.append('hora', hora);
 
   const response = await fetch(
     `${API_BASE_URL}/consultar-mesas/?${params.toString()}`,

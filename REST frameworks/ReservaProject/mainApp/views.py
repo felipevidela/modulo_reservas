@@ -397,16 +397,56 @@ class ConsultaMesasView(views.APIView):
     """
     Endpoint de consulta de mesas (HU-08)
     Accesible por: Todos (incluyendo usuarios no autenticados para reserva pública)
+
+    Parámetros opcionales:
+    - estado: filtrar por estado actual de la mesa
+    - fecha: verificar disponibilidad para una fecha específica (YYYY-MM-DD)
+    - hora: verificar disponibilidad para una hora específica (HH:MM)
     """
     permission_classes = [AllowAny]
 
     def get(self, request):
         estado = request.query_params.get('estado', None)
+        fecha_str = request.query_params.get('fecha', None)
+        hora_str = request.query_params.get('hora', None)
 
+        # Obtener todas las mesas o filtrar por estado
         if estado:
             mesas = Mesa.objects.filter(estado=estado)
         else:
             mesas = Mesa.objects.all()
+
+        # Si se proporciona fecha y hora, filtrar mesas disponibles
+        if fecha_str and hora_str:
+            from datetime import datetime, timedelta
+
+            try:
+                fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+                hora_inicio = datetime.strptime(hora_str, '%H:%M').time()
+
+                # Calcular hora fin (2 horas después)
+                dt_inicio = datetime.combine(fecha, hora_inicio)
+                dt_fin = dt_inicio + timedelta(hours=2)
+                hora_fin = dt_fin.time()
+
+                # Obtener mesas con reservas que se solapen
+                mesas_ocupadas_ids = Reserva.objects.filter(
+                    fecha_reserva=fecha,
+                    estado__in=['pendiente', 'activa'],
+                    # Verificar solapamiento de horarios:
+                    # La nueva reserva se solapa si:
+                    # - Su hora_inicio es antes de hora_fin de reserva existente Y
+                    # - Su hora_fin es después de hora_inicio de reserva existente
+                ).filter(
+                    Q(hora_inicio__lt=hora_fin) & Q(hora_fin__gt=hora_inicio)
+                ).values_list('mesa_id', flat=True)
+
+                # Excluir mesas ocupadas
+                mesas = mesas.exclude(id__in=mesas_ocupadas_ids)
+
+            except ValueError:
+                # Si hay error en el formato de fecha/hora, ignorar el filtro
+                pass
 
         serializer = MesaSerializer(mesas, many=True)
         return Response(serializer.data)
