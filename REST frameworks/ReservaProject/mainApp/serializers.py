@@ -116,10 +116,38 @@ class RegisterSerializer(serializers.ModelSerializer):
                 'password_confirm': 'Las contraseñas no coinciden'
             })
 
-        # Validar longitud mínima de contraseña
-        if len(data['password']) < 8:
+        # Validar complejidad de contraseña
+        password = data['password']
+
+        # Longitud mínima
+        if len(password) < 8:
             raise serializers.ValidationError({
                 'password': 'La contraseña debe tener al menos 8 caracteres'
+            })
+
+        # Debe contener al menos una letra mayúscula
+        if not any(c.isupper() for c in password):
+            raise serializers.ValidationError({
+                'password': 'La contraseña debe contener al menos una letra mayúscula'
+            })
+
+        # Debe contener al menos una letra minúscula
+        if not any(c.islower() for c in password):
+            raise serializers.ValidationError({
+                'password': 'La contraseña debe contener al menos una letra minúscula'
+            })
+
+        # Debe contener al menos un número
+        if not any(c.isdigit() for c in password):
+            raise serializers.ValidationError({
+                'password': 'La contraseña debe contener al menos un número'
+            })
+
+        # Opcional pero recomendado: caracteres especiales
+        caracteres_especiales = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+        if not any(c in caracteres_especiales for c in password):
+            raise serializers.ValidationError({
+                'password': 'La contraseña debe contener al menos un carácter especial (!@#$%^&*()_+-=[]{}|;:,.<>?)'
             })
 
         return data
