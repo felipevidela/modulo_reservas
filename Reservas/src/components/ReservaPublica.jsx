@@ -506,9 +506,9 @@ export default function ReservaPublica({ onReservaExitosa }) {
                         )}
                       </>
                     )}
-                    {!formData.fecha_reserva ? (
+                    {!formData.fecha_reserva || !formData.hora_inicio || !formData.num_personas ? (
                       <small className="text-muted d-block mt-1">
-                        Seleccione fecha y número de personas para ver mesas disponibles
+                        Seleccione fecha, hora y número de personas para ver mesas disponibles
                       </small>
                     ) : mesas.length === 0 && !loadingMesas ? (
                       <small className="text-warning d-block mt-1">
