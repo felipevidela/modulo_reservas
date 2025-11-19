@@ -119,6 +119,10 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
             } else if (fecha) {
                 filtros.fecha = fecha;
             }
+            // Agregar búsqueda por cliente (nombre, email, username)
+            if (busqueda && busqueda.trim() !== '') {
+                filtros.search = busqueda.trim();
+            }
             const data = await getReservas(filtros);
             setReservas(data);
         } catch (err) {
@@ -134,6 +138,16 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         cargarReservas();
         setCurrentPage(1); // Reset to first page on date change
     }, [fecha, fechaInicio, fechaFin, showAllReservations]);
+
+    // Debounced search: Esperar 300ms después de que el usuario deje de escribir
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            cargarReservas();
+            setCurrentPage(1); // Reset to first page on search
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [busqueda]);
 
     // Pre-cargar caché de mesas al montar componente (optimización)
     useEffect(() => {
@@ -202,17 +216,11 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         return () => window.removeEventListener('resize', handleResize);
     }, [isBrowser]);
 
-    // Filtro por estado, texto y búsqueda avanzada
+    // Filtro por estado y búsqueda avanzada (búsqueda por cliente ahora en backend)
     const reservasFiltradas = useMemo(() => {
         let filtered = reservas.filter((r) => {
             const coincideEstado =
                 estadoFiltro === "TODOS" || r.estado === estadoFiltro;
-
-            const texto = busqueda.toLowerCase();
-            const coincideBusqueda =
-                !texto ||
-                r.cliente.toLowerCase().includes(texto) ||
-                r.mesa.toLowerCase().includes(texto);
 
             // Advanced search filters
             const coincideHora = !searchHora || (r.hora && r.hora.includes(searchHora));
@@ -223,7 +231,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
             const coincidePersonasMax = !searchPersonasMax ||
                 (r.personas && r.personas <= parseInt(searchPersonasMax));
 
-            return coincideEstado && coincideBusqueda && coincideHora &&
+            return coincideEstado && coincideHora &&
                    coincidePersonasMin && coincidePersonasMax;
         });
 
@@ -252,7 +260,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         }
 
         return filtered;
-    }, [reservas, estadoFiltro, busqueda, searchHora, searchPersonasMin, searchPersonasMax, sortField, sortDirection]);
+    }, [reservas, estadoFiltro, searchHora, searchPersonasMin, searchPersonasMax, sortField, sortDirection]);
 
     // Pagination logic
     const totalPages = Math.ceil(reservasFiltradas.length / itemsPerPage);
@@ -822,13 +830,13 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                 htmlFor="filtro-busqueda"
                                 className="form-label small"
                             >
-                                Buscar (cliente / mesa)
+                                Buscar cliente
                             </label>
                             <input
                                 type="text"
                                 id="filtro-busqueda"
                                 className="form-control form-control-sm"
-                                placeholder="Ej: Juan, Mesa 5"
+                                placeholder="Buscar por nombre, email o usuario..."
                                 value={busqueda}
                                 onChange={(e) => setBusqueda(e.target.value)}
                             />

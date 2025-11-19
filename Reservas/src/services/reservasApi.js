@@ -178,7 +178,8 @@ export function isAuthenticated() {
 
 /**
  * Obtener reservas con filtros opcionales
- * @param {Object} params - {fecha, estado, fecha_inicio, fecha_fin, page, page_size}
+ * @param {Object} params - {fecha, estado, fecha_inicio, fecha_fin, search, page, page_size}
+ * @param {string} params.search - Búsqueda por cliente (nombre, username, email)
  * @param {Object} options - { fetchAllPages?: boolean }
  * @returns {Array} - Lista de reservas
  */
@@ -193,6 +194,7 @@ export async function getReservas(params = {}, options = {}) {
     page,
     page_size,
     pageSize,
+    search,  // Nuevo parámetro para búsqueda por cliente
   } = params;
 
   const { fetchAllPages = true } = options;
@@ -218,6 +220,11 @@ export async function getReservas(params = {}, options = {}) {
 
   if (estado && estado !== 'TODOS') {
     searchParams.append('estado', estado.toLowerCase());
+  }
+
+  // Búsqueda por cliente (username, nombre, email)
+  if (search && search.trim() !== '') {
+    searchParams.append('search', search.trim());
   }
 
   if (page) {

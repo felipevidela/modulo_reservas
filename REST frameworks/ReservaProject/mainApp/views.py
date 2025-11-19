@@ -941,29 +941,40 @@ class ReservaViewSet(viewsets.ModelViewSet):
        - ?fecha_reserva=2025-11-15  Filtra por fecha específica (formato YYYY-MM-DD)
        - ?mesa=5                Filtra por número de mesa
 
-    2. Filtro especial por fecha relativa:
+    2. Búsqueda por cliente (Search Filter):
+       - ?search=juan           Busca en: username, nombre, apellido, email, nombre_completo
+       - La búsqueda es case-insensitive y busca coincidencias parciales
+       - Ejemplos: "juan perez", "juan@example.com", "jpérez"
+
+    3. Filtro especial por fecha relativa:
        - ?date=today            Reservas de hoy
 
-    3. Ordenamiento:
+    4. Ordenamiento:
        - ?ordering=fecha_reserva        Ordena ascendente por fecha
        - ?ordering=-fecha_reserva       Ordena descendente por fecha
        - ?ordering=hora_inicio          Ordena por hora de inicio
 
-    4. Paginación (50 elementos por página):
+    5. Paginación (50 elementos por página):
        - ?page=2                Segunda página de resultados
 
     Ejemplos de uso:
     - GET /api/reservas/?estado=activa&date=today
       → Reservas activas del día actual
+    - GET /api/reservas/?search=juan&estado=pendiente
+      → Reservas pendientes del cliente "juan"
     - GET /api/reservas/?fecha_reserva=2025-11-15&mesa=5
       → Reservas de la mesa 5 en fecha específica
+    - GET /api/reservas/?search=@example.com
+      → Todas las reservas de clientes con email @example.com
     - GET /api/reservas/?ordering=-created_at&page=1
       → Primera página de reservas ordenadas por fecha de creación descendente
     """
     queryset = Reserva.objects.all()
     serializer_class = ReservaSerializer
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['estado', 'fecha_reserva', 'mesa']
+    search_fields = ['cliente__username', 'cliente__first_name', 'cliente__last_name',
+                     'cliente__email', 'cliente__perfil__nombre_completo']
     ordering_fields = ['fecha_reserva', 'hora_inicio', 'created_at']
     ordering = ['-fecha_reserva', '-hora_inicio']
 
