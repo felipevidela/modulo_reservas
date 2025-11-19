@@ -14,6 +14,7 @@ import { useFormValidation } from '../hooks/useFormValidation';
 import { useToast } from '../contexts/ToastContext';
 import { formatErrorMessage } from '../utils/errorMessages';
 import { FormSkeleton } from './ui/Skeleton';
+import ModalConfirmacionReserva from './ui/ModalConfirmacionReserva';
 
 export default function ReservaPublica({ onReservaExitosa }) {
   const toast = useToast();
@@ -27,6 +28,10 @@ export default function ReservaPublica({ onReservaExitosa }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [crearCuenta, setCrearCuenta] = useState(false);
+  const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false);
+  const [datosReservaConfirmada, setDatosReservaConfirmada] = useState(null);
+  const [datosClienteConfirmado, setDatosClienteConfirmado] = useState(null);
+  const [esInvitadoConfirmado, setEsInvitadoConfirmado] = useState(false);
 
   // Reglas de validación
   const validationRules = {
@@ -267,28 +272,58 @@ export default function ReservaPublica({ onReservaExitosa }) {
       // Registrar y reservar
       const result = await registerAndReserve(values);
 
-      // Mostrar mensaje según tipo de usuario
-      if (result.es_invitado) {
-        toast.success('¡Reserva confirmada! Revisa tu email para gestionar tu reserva. 📧');
-      } else {
-        toast.success(`¡Reserva confirmada! Mesa ${result.reserva.mesa_numero} para el ${result.reserva.fecha_reserva}`);
-      }
+      // Preparar datos para el modal
+      const datosReserva = {
+        id: result.reserva.id || result.reserva_id,
+        mesa_numero: result.reserva.mesa_numero,
+        mesa_capacidad: result.reserva.mesa_capacidad || values.num_personas,
+        fecha_reserva: result.reserva.fecha_reserva,
+        hora_inicio: result.reserva.hora_inicio,
+        hora_fin: result.reserva.hora_fin,
+        num_personas: result.reserva.num_personas
+      };
 
-      setTimeout(() => {
-        if (onReservaExitosa) {
-          try {
-            onReservaExitosa(result);
-          } catch (redirectErr) {
-            console.error('Error al redirigir:', redirectErr);
-          }
-        }
-      }, 2000);
+      const datosCliente = {
+        nombre: values.nombre,
+        apellido: values.apellido,
+        email: values.email,
+        telefono: values.telefono
+      };
+
+      // Guardar datos y abrir modal
+      setDatosReservaConfirmada(datosReserva);
+      setDatosClienteConfirmado(datosCliente);
+      setEsInvitadoConfirmado(result.es_invitado);
+      setMostrarModalConfirmacion(true);
+
+      // Mostrar toast breve
+      toast.success('¡Reserva creada exitosamente!');
+
+      // Guardar resultado para redirección posterior
+      window._reservaResult = result;
     } catch (err) {
       const errorMsg = formatErrorMessage(err);
       toast.error(errorMsg);
       throw err;
     }
   });
+
+  // Manejar cierre del modal de confirmación
+  const handleCloseModalConfirmacion = () => {
+    setMostrarModalConfirmacion(false);
+
+    // Esperar a que el modal se cierre antes de redirigir
+    setTimeout(() => {
+      if (onReservaExitosa && window._reservaResult) {
+        try {
+          onReservaExitosa(window._reservaResult);
+          window._reservaResult = null;
+        } catch (redirectErr) {
+          console.error('Error al redirigir:', redirectErr);
+        }
+      }
+    }, 300);
+  };
 
   const getFechaMinima = () => new Date().toISOString().split('T')[0];
 
@@ -730,6 +765,15 @@ export default function ReservaPublica({ onReservaExitosa }) {
           </div>
         </div>
       </div>
+
+      {/* Modal de Confirmación */}
+      <ModalConfirmacionReserva
+        isOpen={mostrarModalConfirmacion}
+        onClose={handleCloseModalConfirmacion}
+        reservaData={datosReservaConfirmada}
+        clienteData={datosClienteConfirmado}
+        esInvitado={esInvitadoConfirmado}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useFormValidation } from '../hooks/useFormValidation';
 import { useToast } from '../contexts/ToastContext';
 import { formatErrorMessage } from '../utils/errorMessages';
 import { FormSkeleton } from './ui/Skeleton';
+import ModalConfirmacionReserva from './ui/ModalConfirmacionReserva';
 
 export default function FormularioReserva({ onReservaCreada }) {
   const toast = useToast();
@@ -14,6 +15,8 @@ export default function FormularioReserva({ onReservaCreada }) {
   const [horasDisponibles, setHorasDisponibles] = useState([]);
   const [horasNoDisponibles, setHorasNoDisponibles] = useState([]);
   const [horasInfo, setHorasInfo] = useState([]); // Nueva estructura: [{hora, mesas_disponibles}]
+  const [mostrarModalConfirmacion, setMostrarModalConfirmacion] = useState(false);
+  const [datosReservaConfirmada, setDatosReservaConfirmada] = useState(null);
 
   // Reglas de validación
   const validationRules = {
@@ -168,6 +171,23 @@ export default function FormularioReserva({ onReservaCreada }) {
     return mesaSeleccionada ? mesaSeleccionada.capacidad : 20;
   };
 
+  // Manejar cierre del modal de confirmación
+  const handleCloseModalConfirmacion = () => {
+    setMostrarModalConfirmacion(false);
+
+    // Notificar al componente padre después de cerrar
+    setTimeout(() => {
+      if (onReservaCreada && window._nuevaReserva) {
+        try {
+          onReservaCreada(window._nuevaReserva);
+          window._nuevaReserva = null;
+        } catch (notifyErr) {
+          console.error('Error al notificar componente padre:', notifyErr);
+        }
+      }
+    }, 300);
+  };
+
   // Manejar el submit usando el hook de validación
   const onSubmit = handleSubmit(async (values) => {
     try {
@@ -197,6 +217,21 @@ export default function FormularioReserva({ onReservaCreada }) {
 
       const nuevaReserva = await createReserva(reservaData);
 
+      // Preparar datos para el modal (nota: usuarios registrados ya tienen perfil cargado)
+      const datosReserva = {
+        id: nuevaReserva.id,
+        mesa_numero: nuevaReserva.mesa_numero || nuevaReserva.mesa,
+        mesa_capacidad: values.num_personas,
+        fecha_reserva: nuevaReserva.fecha_reserva,
+        hora_inicio: nuevaReserva.hora_inicio,
+        hora_fin: nuevaReserva.hora_fin,
+        num_personas: nuevaReserva.num_personas
+      };
+
+      // Abrir modal de confirmación
+      setDatosReservaConfirmada(datosReserva);
+      setMostrarModalConfirmacion(true);
+
       toast.success('¡Reserva creada exitosamente!');
 
       // Recargar mesas
@@ -206,14 +241,8 @@ export default function FormularioReserva({ onReservaCreada }) {
         console.error('Error al recargar mesas:', reloadErr);
       }
 
-      // Notificar al componente padre
-      if (onReservaCreada) {
-        try {
-          onReservaCreada(nuevaReserva);
-        } catch (notifyErr) {
-          console.error('Error al notificar componente padre:', notifyErr);
-        }
-      }
+      // Guardar para callback posterior
+      window._nuevaReserva = nuevaReserva;
     } catch (err) {
       console.error('Error completo:', err);
       const errorMsg = formatErrorMessage(err);
@@ -444,6 +473,15 @@ export default function FormularioReserva({ onReservaCreada }) {
           </small>
         </form>
       </div>
+
+      {/* Modal de Confirmación */}
+      <ModalConfirmacionReserva
+        isOpen={mostrarModalConfirmacion}
+        onClose={handleCloseModalConfirmacion}
+        reservaData={datosReservaConfirmada}
+        clienteData={null} // Para usuarios registrados, no mostramos datos del cliente
+        esInvitado={false}
+      />
     </div>
   );
 }
