@@ -256,6 +256,12 @@ class MesaSerializer(serializers.ModelSerializer):
         model = Mesa
         fields = '__all__'
 
+    def validate_capacidad(self, value):
+        """Validar que la capacidad sea al menos 1 persona"""
+        if value < 1:
+            raise serializers.ValidationError('La capacidad debe ser al menos 1 persona.')
+        return value
+
 
 # Serializer para el modelo Reserva
 class ReservaSerializer(serializers.ModelSerializer):
@@ -284,7 +290,7 @@ class ReservaSerializer(serializers.ModelSerializer):
 
         FIX #7 (GRAVE): Validar num_personas en backend
         """
-        from datetime import date
+        from datetime import date, time
 
         # Validar fecha no sea en el pasado
         if data.get('fecha_reserva') and data['fecha_reserva'] < date.today():
@@ -292,8 +298,23 @@ class ReservaSerializer(serializers.ModelSerializer):
                 'fecha_reserva': 'No se pueden crear reservas para fechas pasadas'
             })
 
+        # Validar horario de operación del restaurante (12:00 - 21:00)
+        if data.get('hora_inicio'):
+            hora_apertura = time(12, 0)
+            hora_ultimo_turno = time(21, 0)
+
+            if data['hora_inicio'] < hora_apertura:
+                raise serializers.ValidationError({
+                    'hora_inicio': f'El restaurante abre a las 12:00. No se pueden hacer reservas antes de este horario.'
+                })
+
+            if data['hora_inicio'] > hora_ultimo_turno:
+                raise serializers.ValidationError({
+                    'hora_inicio': f'El último turno es a las 21:00. No se pueden hacer reservas después de este horario.'
+                })
+
         # FIX #7 (GRAVE): Validar num_personas con límites razonables
-        if data.get('num_personas'):
+        if 'num_personas' in data:
             if data['num_personas'] < 1:
                 raise serializers.ValidationError({
                     'num_personas': 'Debe reservar para al menos 1 persona'
