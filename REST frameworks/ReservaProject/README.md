@@ -1,328 +1,376 @@
-# Sistema de Reservas de Restaurante
+# 🍽️ Sistema de Reservas de Restaurante
 
-Sistema de gestión de reservas para restaurante desarrollado con Django REST Framework y React.
+**Proyecto Universitario - Sistema de Gestión de Reservas**
+
+Sistema web completo para gestionar reservas de un restaurante, desarrollado con Django REST Framework (backend) y React (frontend).
+
+---
+
+## 📚 Descripción del Proyecto
+
+Este sistema permite a un restaurante gestionar sus reservas de forma eficiente con las siguientes funcionalidades:
+
+- **Reservas públicas**: Los clientes pueden hacer reservas sin necesidad de crear cuenta
+- **Sistema de usuarios**: Opción de crear cuenta para gestionar múltiples reservas
+- **Gestión de mesas**: Control de disponibilidad y estados de las mesas
+- **Roles de usuario**: Cliente, Mesero, Cajero y Administrador
+- **Validación de horarios**: Prevención de solapamientos y reservas duplicadas
+
+---
 
 ## 🚀 Tecnologías Utilizadas
 
 ### Backend
-- **Django 5.2.7** - Framework web
-- **Django REST Framework 3.16.1** - API REST
+- **Django 5.2.7** - Framework web de Python
+- **Django REST Framework** - Para crear la API REST
 - **PostgreSQL** - Base de datos
-- **django-encrypted-model-fields 0.6.5** - Encriptación de campos sensibles
-- **django-cors-headers 4.6.0** - CORS para frontend
-- **django-filter 24.3** - Filtrado de consultas
-- **cryptography 46.0.3** - Librería de encriptación (Fernet)
+- **Token Authentication** - Sistema de autenticación
 
 ### Frontend
-- **React 19.2.0** - Framework UI
-- **Vite 7.2.2** - Build tool
-- **Bootstrap 5** - Estilos
-- **Bootstrap Icons** - Iconos
+- **React 19** - Librería de JavaScript para interfaces
+- **Vite** - Herramienta de desarrollo rápida
+- **Bootstrap 5** - Framework CSS para estilos
+- **React Router** - Navegación entre páginas
+
+---
 
 ## 📋 Requisitos Previos
 
-- Python 3.13+
+Antes de comenzar, asegúrate de tener instalado:
+
+- Python 3.13 o superior
 - PostgreSQL
-- Node.js 18+
-- npm
+- Node.js 18 o superior
+- npm (viene con Node.js)
 
-## 🔧 Instalación
+---
 
-### 1. Configurar Backend (Django)
+## 🔧 Instalación y Configuración
+
+### Paso 1: Clonar el Repositorio
 
 ```bash
+git clone <url-del-repositorio>
+cd modulo_reservas
+```
+
+### Paso 2: Configurar el Backend (Django)
+
+```bash
+# Navegar a la carpeta del backend
 cd "REST frameworks/ReservaProject"
 
-# Instalar dependencias
+# Instalar dependencias de Python
 pip3 install -r requirements.txt
 
 # Crear base de datos PostgreSQL
 createdb reservas_db
 
-# Configurar variables de entorno locales
-cp .env.example .env
-# Edita .env con tus claves reales (SECRET_KEY, FIELD_ENCRYPTION_KEY y credenciales de DB)
-
 # Ejecutar migraciones
-python3 manage.py makemigrations
 python3 manage.py migrate
 
-# Crear superusuario (opcional)
+# (Opcional) Crear un superusuario para acceder al admin
 python3 manage.py createsuperuser
 
-# Iniciar servidor
+# Iniciar el servidor de desarrollo
 python3 manage.py runserver
 ```
 
-> Nota: `.env` está ignorado por Git. Usa `.env.example` como base y nunca subas tus credenciales reales.
+El servidor backend estará disponible en: **http://localhost:8000**
 
-El servidor estará disponible en: `http://localhost:8000`
+### Paso 3: Configurar el Frontend (React)
 
-### 2. Configurar Frontend (React)
+En una **nueva terminal**:
 
 ```bash
+# Navegar a la carpeta del frontend
 cd Reservas
 
-# Instalar dependencias
+# Instalar dependencias de Node
 npm install
 
-# Iniciar servidor de desarrollo
+# Iniciar el servidor de desarrollo
 npm run dev
 ```
 
-El frontend estará disponible en: `http://localhost:5173` (o puerto asignado por Vite)
+El frontend estará disponible en: **http://localhost:5173**
 
-## 🗄️ Estructura de la Base de Datos
+---
+
+## 🎯 Funcionalidades Principales
+
+### 1. Reservas sin Cuenta (Invitados)
+
+Los clientes pueden hacer reservas sin crear cuenta:
+- Completan un formulario con sus datos
+- Reciben un email con un link único para gestionar su reserva
+- Pueden cancelar su reserva con el link
+- Opción de activar cuenta después
+
+### 2. Reservas con Cuenta (Usuarios Registrados)
+
+Los usuarios pueden crear una cuenta para:
+- Ver todas sus reservas en un solo lugar
+- Crear nuevas reservas más rápidamente
+- Editar o cancelar reservas fácilmente
+- No necesitan links de acceso
+
+### 3. Panel de Administración (Staff)
+
+Diferentes niveles de acceso según el rol:
+
+- **Mesero**: Ver reservas del día, gestionar mesas
+- **Cajero**: Ver y gestionar todas las reservas
+- **Administrador**: Acceso completo al sistema
+
+---
+
+## 📊 Estructura de la Base de Datos
 
 ### Modelos Principales
 
-#### **User** (Django auth)
-- Modelo de autenticación de Django
-- Campos: username, email, password
+#### Mesa
+- Número de mesa
+- Capacidad (número de personas)
+- Estado (disponible, reservada, ocupada, limpieza)
 
-#### **Perfil**
-- Extiende User con información adicional
-- **Campos**:
-  - `rol`: admin | cajero | mesero | cliente
-  - `nombre_completo`: Nombre completo del usuario
-  - `rut`: RUT (encriptado con Fernet)
-  - `telefono`: Teléfono (encriptado con Fernet)
-  - `email`: Email adicional
+#### Reserva
+- Cliente (usuario)
+- Mesa asignada
+- Fecha y hora (inicio y fin)
+- Número de personas
+- Estado (pendiente, activa, completada, cancelada)
+- Notas adicionales
 
-#### **Mesa**
-- **Campos**:
-  - `numero`: Número de mesa (único)
-  - `capacidad`: Capacidad de personas
-  - `estado`: disponible | reservada | ocupada | limpieza
+#### Perfil de Usuario
+- Rol (cliente, mesero, cajero, admin)
+- Datos personales (RUT y teléfono encriptados)
+- Información de contacto
 
-#### **Reserva**
-- **Campos**:
-  - `cliente`: FK a User
-  - `mesa`: FK a Mesa
-  - `fecha_reserva`: Fecha de la reserva
-  - `hora_inicio`: Hora de inicio (formato 24hrs)
-  - `hora_fin`: Hora de finalización (formato 24hrs)
-  - `num_personas`: Número de personas
-  - `estado`: pendiente | activa | completada | cancelada
-  - `notas`: Notas adicionales
+---
 
-## 🔐 Seguridad y Encriptación
+## 🔐 Seguridad
 
-### Campos Encriptados
+El sistema implementa varias medidas de seguridad:
 
-El sistema utiliza **django-encrypted-model-fields** con **Fernet (AES-128)** para encriptar datos sensibles:
+- **Encriptación**: Los datos sensibles (RUT, teléfono) se encriptan en la base de datos
+- **Autenticación por token**: Sistema seguro de inicio de sesión
+- **Validación de datos**: En frontend y backend
+- **Prevención de solapamientos**: No permite reservas duplicadas
 
-- **RUT del usuario**
-- **Teléfono del usuario**
+---
 
-**Configuración en `settings.py`:**
-```python
-# Clave de encriptación (debe estar en variable de entorno en producción)
-FIELD_ENCRYPTION_KEY = os.environ.get(
-    'FIELD_ENCRYPTION_KEY',
-    '4GmvO9dDiZCcJ-B1PglnW5nwn5pkQK3E5jYU-F517W0='
-)
-```
+## 🎨 Uso del Sistema
 
-**Generar nueva clave de encriptación:**
-```python
-from cryptography.fernet import Fernet
-print(Fernet.generate_key().decode())
-```
+### Para Clientes (Vista Pública)
 
-⚠️ **IMPORTANTE**: En producción, la clave DEBE estar en una variable de entorno y NUNCA en el código.
+1. Abre http://localhost:5173
+2. Completa el formulario de reserva
+3. Opcional: Marca "Quiero crear una cuenta" para acceso completo
+4. Recibirás un email de confirmación
+
+### Para Staff (Vista Interna)
+
+1. Haz clic en "Iniciar Sesión"
+2. Ingresa tus credenciales
+3. Accede a las funciones según tu rol
+
+---
+
+## 📱 Endpoints de la API
 
 ### Autenticación
-
-- **Token-based authentication** con Django REST Framework
-- Permisos basados en roles (admin, cajero, mesero, cliente)
-
-## 📡 API Endpoints
-
-### Autenticación
-
 ```
-POST   /api/login/          - Login de usuario
-POST   /api/register/       - Registro de usuario
-GET    /api/perfil/         - Obtener perfil del usuario actual
-```
-
-### Mesas
-
-```
-GET    /api/mesas/          - Listar mesas (admin/cajero/mesero)
-GET    /api/consultar-mesas/ - Consultar mesas disponibles (todos)
-PATCH  /api/mesas/{id}/     - Actualizar mesa (admin)
+POST /api/login/                    - Iniciar sesión
+POST /api/register-and-reserve/     - Registrar y reservar
+POST /api/activar-cuenta/           - Activar cuenta de invitado
 ```
 
 ### Reservas
-
 ```
-GET    /api/reservas/                    - Listar reservas
-POST   /api/reservas/                    - Crear reserva
-GET    /api/reservas/{id}/               - Detalle de reserva
-PATCH  /api/reservas/{id}/cambiar_estado/ - Cambiar estado
-DELETE /api/reservas/{id}/               - Eliminar reserva
+GET  /api/reservas/                 - Listar reservas
+POST /api/reservas/                 - Crear reserva
+GET  /api/horas-disponibles/        - Ver horarios disponibles
+GET  /api/reserva-invitado/:token/  - Ver reserva con token
 ```
 
-**Filtros disponibles:**
-- `?fecha_reserva=YYYY-MM-DD` - Filtrar por fecha
-- `?estado=pendiente|activa|completada|cancelada` - Filtrar por estado
-- `?date=today` - Reservas del día actual
-
-### Usuarios (Solo Admin)
-
+### Mesas
 ```
-GET    /api/usuarios/                    - Listar usuarios
-PATCH  /api/usuarios/{id}/cambiar-rol/   - Cambiar rol de usuario
+GET  /api/mesas/                    - Listar mesas
+GET  /api/mesas/?fecha=&hora=       - Mesas disponibles
 ```
 
-## ✅ Validaciones Implementadas
+---
 
-### Frontend (React)
+## 🧪 Datos de Prueba
 
-- Login: campos vacíos, mínimo 3 caracteres usuario, mínimo 4 caracteres password
-- Reserva: formato hora 24hrs (HH:MM), fecha no pasada, hora fin > hora inicio
-- Reserva: capacidad de mesa no excedida
-- Todos los campos obligatorios validados
+### Generar Mesas de Ejemplo
 
-### Backend (Django)
+```bash
+python3 manage.py shell
 
-- **Modelo Reserva**:
-  - Hora fin > hora inicio
-  - Fecha no puede ser en el pasado
-  - Capacidad de mesa no excedida
-  - Mínimo 1 persona
-  - **No solapamiento de horarios** (misma mesa, misma fecha)
+# Dentro del shell:
+from mainApp.models import Mesa
 
-- **Serializers**:
-  - Validación de todos los campos del modelo
-  - Mensajes de error personalizados en español
+for i in range(1, 7):
+    capacidad = 2 if i <= 4 else 4
+    Mesa.objects.create(numero=i, capacidad=capacidad, estado='disponible')
 
-## 👥 Roles y Permisos
+exit()
+```
 
-| Rol | Permisos |
-|-----|----------|
-| **Cliente** | Ver y crear sus propias reservas |
-| **Mesero** | Ver reservas del día, gestionar estados de mesas |
-| **Cajero** | Ver y gestionar todas las reservas, cambiar estados |
-| **Admin** | Acceso completo: usuarios, mesas, reservas |
+### Generar Reservas de Ejemplo
 
-## 🎨 Características del Frontend
+```bash
+python3 manage.py generar_reservas_ejemplo --reservas-por-dia 20
+```
 
-### Componentes Principales
+---
 
-- **LoginForm**: Autenticación de usuarios
-- **FormularioReserva**: Crear nuevas reservas (clientes)
-- **MisReservas**: Ver reservas propias (clientes)
-- **PanelReservas**: Ver todas las reservas (cajero/admin)
-- **GestionMesas**: Gestionar estados de mesas (mesero/admin)
-- **GestionUsuarios**: Gestionar usuarios y roles (admin)
+## 📝 Validaciones Implementadas
 
-### Navegación por Rol
+### Validaciones de Reserva
 
-La interfaz se adapta según el rol del usuario:
+- ✅ Fecha no puede ser en el pasado
+- ✅ Hora de fin debe ser después de hora de inicio
+- ✅ No puede exceder la capacidad de la mesa
+- ✅ No permite solapamiento de horarios
+- ✅ Turnos de 2 horas
 
-- **Cliente**: Mis Reservas | Nueva Reserva
-- **Mesero**: Reservas del Día | Gestión de Mesas
-- **Cajero**: Reservas del Día | Gestión de Mesas | Panel de Reservas
-- **Admin**: Todo lo anterior + Gestión de Usuarios
+### Validaciones de Usuario
 
-## 🕐 Formato de Horas
+- ✅ RUT válido con dígito verificador
+- ✅ Teléfono en formato chileno (+56 9...)
+- ✅ Email válido
+- ✅ Contraseña segura (mínimo 8 caracteres)
 
-El sistema usa **formato militar de 24 horas** (estándar chileno):
-- Input: `14:30` (no AM/PM)
-- Display: `14:30 hrs`
-- Backend: `14:30:00`
+---
 
 ## 🔄 Estados del Sistema
 
 ### Estados de Mesa
-- **disponible**: Mesa lista para uso
+- **disponible**: Mesa lista para reservar
 - **reservada**: Mesa con reserva confirmada
-- **ocupada**: Mesa actualmente ocupada
-- **limpieza**: Mesa en proceso de limpieza
+- **ocupada**: Mesa actualmente en uso
+- **limpieza**: Mesa siendo limpiada
 
 ### Estados de Reserva
-- **pendiente**: Reserva confirmada, esperando llegada
-- **activa**: Cliente ha llegado, mesa ocupada
+- **pendiente**: Reserva confirmada, cliente aún no llega
+- **activa**: Cliente ha llegado
 - **completada**: Reserva finalizada
 - **cancelada**: Reserva cancelada
 
-## 🔧 Configuración CORS
+---
 
-El backend permite conexiones desde:
-- `http://localhost:5173`
-- `http://localhost:5174`
-- `http://localhost:5175`
+## 🛠️ Comandos Útiles
 
-Para agregar más orígenes, editar `CORS_ALLOWED_ORIGINS` en `settings.py`.
+### Backend (Django)
 
-## 📝 Datos de Prueba
+```bash
+# Crear migraciones después de cambios en models.py
+python3 manage.py makemigrations
 
-### Usuarios por defecto (si fueron creados)
+# Aplicar migraciones
+python3 manage.py migrate
 
+# Acceder al shell interactivo
+python3 manage.py shell
+
+# Crear superusuario
+python3 manage.py createsuperuser
+
+# Ver todas las migraciones
+python3 manage.py showmigrations
+```
+
+### Frontend (React)
+
+```bash
+# Instalar nueva dependencia
+npm install <nombre-paquete>
+
+# Compilar para producción
+npm run build
+
+# Previsualizar build de producción
+npm run preview
+```
+
+---
+
+## 📦 Estructura del Proyecto
+
+```
+modulo_reservas/
+├── REST frameworks/
+│   └── ReservaProject/          # Backend Django
+│       ├── mainApp/             # App principal
+│       │   ├── models.py        # Modelos de BD
+│       │   ├── views.py         # Vistas de la API
+│       │   ├── serializers.py   # Serializadores
+│       │   └── urls.py          # URLs de la app
+│       ├── ReservaProject/      # Configuración
+│       │   ├── settings.py      # Configuración
+│       │   └── urls.py          # URLs principales
+│       └── manage.py            # CLI de Django
+│
+└── Reservas/                    # Frontend React
+    ├── src/
+    │   ├── components/          # Componentes React
+    │   ├── contexts/            # Context API
+    │   ├── services/            # Llamadas a API
+    │   └── App.jsx              # Componente principal
+    └── package.json             # Dependencias npm
+```
+
+---
+
+## 🐛 Solución de Problemas Comunes
+
+### El servidor Django no inicia
+```bash
+# Verificar que PostgreSQL está corriendo
+pg_isready
+
+# Verificar que la base de datos existe
+psql -l | grep reservas_db
+```
+
+### Error de CORS en el frontend
+Verifica que en `settings.py` esté configurado:
 ```python
-# Ejecutar en shell de Django: python3 manage.py shell
-
-from django.contrib.auth.models import User
-from mainApp.models import Perfil
-
-# Cliente
-user1 = User.objects.create_user(username='cliente1', password='cliente123')
-Perfil.objects.create(user=user1, rol='cliente', nombre_completo='Cliente Uno')
-
-# Mesero
-user2 = User.objects.create_user(username='mesero1', password='mesero123')
-Perfil.objects.create(user=user2, rol='mesero', nombre_completo='Mesero Uno')
-
-# Cajero
-user3 = User.objects.create_user(username='cajero1', password='cajero123')
-Perfil.objects.create(user=user3, rol='cajero', nombre_completo='Cajero Uno')
-
-# Admin
-user4 = User.objects.create_user(username='admin', password='admin123', is_staff=True, is_superuser=True)
-Perfil.objects.create(user=user4, rol='admin', nombre_completo='Administrador')
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+]
 ```
 
-## 📦 Dependencias Completas
-
-### Backend (`requirements.txt`)
-
-```
-Django==5.2.7
-djangorestframework==3.16.1
-psycopg2-binary==2.9.10
-django-encrypted-model-fields==0.6.5
-django-cors-headers==4.6.0
-django-filter==24.3
-cryptography==46.0.3
+### Error de migraciones
+```bash
+# Resetear migraciones (solo en desarrollo)
+python3 manage.py migrate mainApp zero
+python3 manage.py migrate
 ```
 
-### Frontend (`package.json`)
+---
 
-```json
-{
-  "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "bootstrap": "^5.3.0",
-    "bootstrap-icons": "^1.11.0"
-  },
-  "devDependencies": {
-    "vite": "^7.2.2",
-    "@vitejs/plugin-react": "^4.3.4"
-  }
-}
-```
+## 📚 Recursos de Aprendizaje
+
+- [Documentación de Django](https://docs.djangoproject.com/)
+- [Django REST Framework](https://www.django-rest-framework.org/)
+- [React Docs](https://react.dev/)
+- [Bootstrap 5](https://getbootstrap.com/docs/5.3/)
+
+---
+
+## 👥 Equipo de Desarrollo
+
+**Proyecto Universitario** - Desarrollo de Aplicaciones Web
+
+---
 
 ## 📄 Licencia
 
-Este proyecto fue desarrollado como parte del Sprint 3 del módulo de reservas.
-
-## 👨‍💻 Desarrolladores
-
-- Equipo de desarrollo Sprint 3Q
+Este proyecto es de uso educativo para el curso de Desarrollo de Aplicaciones Web.
 
 ---
 
