@@ -973,11 +973,12 @@ class ReservaViewSet(viewsets.ModelViewSet):
     - GET /api/reservas/?date=today&search=juan
       → Busca "juan" SOLO en las reservas de hoy (muy rápido)
 
-    Ejemplo no optimizado:
+    Búsqueda sin fecha (con límite automático):
     - GET /api/reservas/?search=juan
-      → Busca "juan" en TODAS las reservas (puede ser lento con muchos datos)
+      → Busca "juan" en reservas de últimos 7 días + futuras (previene escaneo completo)
 
     Beneficio: 60-90% más rápido cuando se especifica fecha en búsquedas de clientes.
+    Protección automática: Búsquedas sin fecha se limitan a ventana relevante (7 días).
 
     Ejemplos de uso:
     - GET /api/reservas/?estado=activa&date=today
@@ -1050,16 +1051,24 @@ class ReservaViewSet(viewsets.ModelViewSet):
 
         # Filtro por fecha (para HU-17: reservas del día)
         fecha = self.request.query_params.get('date', None)
+        fecha_reserva = self.request.query_params.get('fecha_reserva', None)
+
         if fecha == 'today':
             queryset = queryset.filter(fecha_reserva=timezone.now().date())
         elif fecha:
             queryset = queryset.filter(fecha_reserva=fecha)
-
-        # Filtro explícito por fecha_reserva (removido de filterset_fields)
-        # Se maneja aquí para asegurar que se aplica ANTES de SearchFilter
-        fecha_reserva = self.request.query_params.get('fecha_reserva', None)
-        if fecha_reserva:
+        elif fecha_reserva:
+            # Filtro explícito por fecha_reserva (removido de filterset_fields)
             queryset = queryset.filter(fecha_reserva=fecha_reserva)
+        else:
+            # OPTIMIZACIÓN ADICIONAL: Si no hay filtro de fecha Y hay búsqueda,
+            # limitar automáticamente a reservas relevantes (últimos 7 días + futuras)
+            # Esto previene escaneos completos de la base de datos
+            search_query = self.request.query_params.get('search', None)
+            if search_query:
+                from datetime import timedelta
+                fecha_limite = timezone.now().date() - timedelta(days=7)
+                queryset = queryset.filter(fecha_reserva__gte=fecha_limite)
 
         # OPTIMIZACIÓN: Cargar relaciones en una sola query
         queryset = queryset.select_related('cliente', 'cliente__perfil', 'mesa')

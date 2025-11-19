@@ -360,14 +360,16 @@ GET /api/reservas/?date=today&search=juan
 # OPTIMIZADO - Busca en fecha específica
 GET /api/reservas/?fecha_reserva=2025-11-15&search=perez
 
-# NO OPTIMIZADO - Busca en toda la base de datos
+# PROTEGIDO - Límite automático: últimos 7 días + futuras
 GET /api/reservas/?search=juan
+# (anteriormente escaneaba toda la BD, ahora limitado automáticamente)
 ```
 
 **Detalles técnicos:**
 - Archivo modificado: `mainApp/views.py` (ReservaViewSet)
 - `fecha_reserva` removido de `filterset_fields` y manejado directamente en `get_queryset()`
 - Filtros de fecha (`?date=today`, `?fecha_reserva=YYYY-MM-DD`) se aplican antes de SearchFilter
+- Búsquedas sin fecha se limitan automáticamente a ventana relevante (7 días + futuras)
 - 100% compatible con API existente (sin breaking changes)
 
 ## 📚 Recursos Adicionales
