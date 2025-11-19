@@ -78,20 +78,19 @@ export default function FormularioReserva({ onReservaCreada }) {
     cargarMesas();
   }, []);
 
-  // Cargar horas disponibles - solo cuando AMBOS campos estén tocados
+  // Cargar horas disponibles - automáticamente cuando se completen ambos campos
   useEffect(() => {
-    // Solo buscar si AMBOS campos tienen valor Y han sido tocados por el usuario
+    // Buscar automáticamente cuando ambos campos tienen valor
     const ambosCompletos = formData.fecha_reserva && formData.num_personas;
-    const ambosInteractuados = touched.fecha_reserva && touched.num_personas;
 
-    if (ambosCompletos && ambosInteractuados) {
+    if (ambosCompletos) {
       cargarHorasDisponibles();
     } else {
       setHorasDisponibles([]);
       setHorasNoDisponibles([]);
       setHorasInfo([]);
     }
-  }, [formData.fecha_reserva, formData.num_personas, touched.fecha_reserva, touched.num_personas]);
+  }, [formData.fecha_reserva, formData.num_personas]);
 
   // Recargar mesas cuando cambia fecha u hora
   useEffect(() => {
