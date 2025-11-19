@@ -217,13 +217,15 @@ class Reserva(models.Model):
             estado__in=['pendiente', 'activa']
         ).exclude(id=self.id)
 
-        for reserva in reservas_conflicto:
-            # Verificar solapamiento de horarios
-            if (self.hora_inicio < reserva.hora_fin and self.hora_fin > reserva.hora_inicio):
-                raise ValidationError(
-                    f"Solapamiento detectado: La mesa {self.mesa.numero} ya está reservada entre "
-                    f"{reserva.hora_inicio} y {reserva.hora_fin}"
-                )
+        # Verificar que hora_fin esté calculada antes de validar solapamiento
+        if self.hora_fin:
+            for reserva in reservas_conflicto:
+                # Verificar solapamiento de horarios
+                if (self.hora_inicio < reserva.hora_fin and self.hora_fin > reserva.hora_inicio):
+                    raise ValidationError(
+                        f"Solapamiento detectado: La mesa {self.mesa.numero} ya está reservada entre "
+                        f"{reserva.hora_inicio} y {reserva.hora_fin}"
+                    )
 
     def save(self, *args, **kwargs):
         # Auto-calcular hora_fin como hora_inicio + 2 horas

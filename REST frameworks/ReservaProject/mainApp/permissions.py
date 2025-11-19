@@ -161,3 +161,87 @@ class IsAdminOrCajeroOrMesero(BasePermission):
         except AttributeError:
             return False
 
+
+class IsOwnerOrAdmin(BasePermission):
+    """
+    Permite acceso a:
+    - Administradores: acceso total a todas las reservas
+    - Clientes: solo acceso a sus propias reservas
+
+    Este permiso se usa típicamente en ReservaViewSet para asegurar que:
+    1. Admins pueden ver/editar/eliminar cualquier reserva
+    2. Clientes solo pueden ver/editar/eliminar sus propias reservas
+    """
+    def has_permission(self, request, view):
+        """Permitir a usuarios autenticados acceder a la vista"""
+        return request.user and request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        """
+        Verificar permisos a nivel de objeto:
+        - Admin: tiene acceso a todo
+        - Cliente: solo a sus propias reservas
+        """
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        try:
+            # Si es admin, permitir acceso total
+            if request.user.perfil.rol == 'admin':
+                return True
+
+            # Si es el dueño del objeto (reserva), permitir acceso
+            if hasattr(obj, 'cliente'):
+                return obj.cliente == request.user
+
+            # Si es su propio perfil, permitir acceso
+            if hasattr(obj, 'user'):
+                return obj.user == request.user
+
+            # Por defecto, denegar acceso
+            return False
+        except AttributeError:
+            return False
+
+
+class IsAdminOrCajeroOrOwner(BasePermission):
+    """
+    Permite acceso a:
+    - Administradores: acceso total a todas las reservas
+    - Cajeros: acceso total a todas las reservas (pueden modificar estado)
+    - Clientes: solo acceso a sus propias reservas
+
+    Este permiso se usa en ReservaViewSet para operaciones de actualización,
+    permitiendo que cajeros puedan confirmar/activar reservas de cualquier cliente.
+    """
+    def has_permission(self, request, view):
+        """Permitir a usuarios autenticados acceder a la vista"""
+        return request.user and request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        """
+        Verificar permisos a nivel de objeto:
+        - Admin o Cajero: tiene acceso a todo
+        - Cliente: solo a sus propias reservas
+        """
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        try:
+            # Si es admin o cajero, permitir acceso total
+            if request.user.perfil.rol in ['admin', 'cajero']:
+                return True
+
+            # Si es el dueño del objeto (reserva), permitir acceso
+            if hasattr(obj, 'cliente'):
+                return obj.cliente == request.user
+
+            # Si es su propio perfil, permitir acceso
+            if hasattr(obj, 'user'):
+                return obj.user == request.user
+
+            # Por defecto, denegar acceso
+            return False
+        except AttributeError:
+            return False
+
