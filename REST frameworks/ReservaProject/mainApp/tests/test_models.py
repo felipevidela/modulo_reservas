@@ -117,15 +117,13 @@ class TestReservaModel:
         reserva.full_clean()  # No debe lanzar error
 
         # Hora inválida temprano (10:00)
-        # Crear con .create() para que hora_fin se calcule automáticamente
-        reserva_temprano = ReservaFactory.create(hora_inicio=time(10, 0))
+        # La validación se ejecuta en save(), por lo que .create() debe fallar directamente
         with pytest.raises(ValidationError):
-            reserva_temprano.full_clean()
+            ReservaFactory.create(hora_inicio=time(10, 0))
 
         # Hora inválida tarde (22:00)
-        reserva_tarde = ReservaFactory.create(hora_inicio=time(22, 0))
         with pytest.raises(ValidationError):
-            reserva_tarde.full_clean()
+            ReservaFactory.create(hora_inicio=time(22, 0))
 
     def test_num_personas_no_excede_capacidad_mesa(self):
         """El número de personas no puede exceder la capacidad de la mesa"""
@@ -136,10 +134,9 @@ class TestReservaModel:
         reserva_valida.full_clean()
 
         # Inválido: 6 personas en mesa de 4
-        # Crear con .create() para que hora_fin se calcule
-        reserva_invalida = ReservaFactory.create(mesa=mesa, num_personas=6)
+        # La validación se ejecuta en save(), por lo que .create() debe fallar directamente
         with pytest.raises(ValidationError) as exc_info:
-            reserva_invalida.full_clean()
+            ReservaFactory.create(mesa=mesa, num_personas=6)
         assert 'num_personas' in str(exc_info.value)
 
     def test_hora_fin_calculada_automaticamente(self):
@@ -173,6 +170,11 @@ class TestReservaModel:
             fecha_reserva=fecha,
             hora_inicio=time(15, 0)  # Se solapa con reserva1 (14:00-16:00)
         )
+        # Calcular hora_fin manualmente ya que .build() no llama a save()
+        from datetime import datetime
+        dt_inicio = datetime.combine(datetime.today(), reserva2.hora_inicio)
+        dt_fin = dt_inicio + timedelta(hours=2)
+        reserva2.hora_fin = dt_fin.time()
 
         with pytest.raises(ValidationError) as exc_info:
             reserva2.full_clean()

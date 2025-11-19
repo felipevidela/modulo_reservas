@@ -175,9 +175,25 @@ class Reserva(models.Model):
                     f"La hora actual es {hora_actual.strftime('%H:%M')}"
                 )
 
+        # Validar horario de operación del restaurante (12:00 - 21:00)
+        hora_apertura = time(12, 0)
+        hora_ultimo_turno = time(21, 0)
+
+        if self.hora_inicio < hora_apertura:
+            raise ValidationError(
+                f"El restaurante abre a las 12:00. "
+                f"No se pueden hacer reservas antes de este horario."
+            )
+
+        if self.hora_inicio > hora_ultimo_turno:
+            raise ValidationError(
+                f"El último turno es a las 21:00. "
+                f"No se pueden hacer reservas después de este horario."
+            )
+
         # FIX #8 (GRAVE): Validar horario de cierre (restaurante cierra a las 23:00)
         hora_cierre = time(23, 0)
-        if self.hora_fin > hora_cierre:
+        if self.hora_fin and self.hora_fin > hora_cierre:
             raise ValidationError(
                 f"La reserva no puede exceder el horario de cierre (23:00). "
                 f"Hora fin calculada: {self.hora_fin.strftime('%H:%M')}"
@@ -185,10 +201,10 @@ class Reserva(models.Model):
 
         # Validar capacidad de la mesa
         if self.num_personas > self.mesa.capacidad:
-            raise ValidationError(
-                f"La mesa {self.mesa.numero} tiene capacidad para {self.mesa.capacidad} personas. "
-                f"No puede reservar para {self.num_personas} personas."
-            )
+            raise ValidationError({
+                'num_personas': f"La mesa {self.mesa.numero} tiene capacidad para {self.mesa.capacidad} personas. "
+                                f"No puede reservar para {self.num_personas} personas."
+            })
 
         # Validar número mínimo de personas
         if self.num_personas < 1:
@@ -205,7 +221,7 @@ class Reserva(models.Model):
             # Verificar solapamiento de horarios
             if (self.hora_inicio < reserva.hora_fin and self.hora_fin > reserva.hora_inicio):
                 raise ValidationError(
-                    f"La mesa {self.mesa.numero} ya está reservada entre "
+                    f"Solapamiento detectado: La mesa {self.mesa.numero} ya está reservada entre "
                     f"{reserva.hora_inicio} y {reserva.hora_fin}"
                 )
 
