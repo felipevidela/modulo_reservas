@@ -142,17 +142,15 @@ class Command(BaseCommand):
                 )
             )
 
-        # Crear mesas
+        # Crear mesas (solo 6 mesas)
         self.stdout.write(self.style.SUCCESS('\nCreando mesas...'))
         mesas_data = [
             {'numero': 1, 'capacidad': 2, 'estado': 'disponible'},
             {'numero': 2, 'capacidad': 2, 'estado': 'disponible'},
             {'numero': 3, 'capacidad': 4, 'estado': 'disponible'},
             {'numero': 4, 'capacidad': 4, 'estado': 'disponible'},
-            {'numero': 5, 'capacidad': 4, 'estado': 'disponible'},
-            {'numero': 6, 'capacidad': 6, 'estado': 'disponible'},
-            {'numero': 7, 'capacidad': 6, 'estado': 'disponible'},
-            {'numero': 8, 'capacidad': 8, 'estado': 'disponible'},
+            {'numero': 5, 'capacidad': 6, 'estado': 'disponible'},
+            {'numero': 6, 'capacidad': 8, 'estado': 'disponible'},
         ]
 
         mesas_creadas = []

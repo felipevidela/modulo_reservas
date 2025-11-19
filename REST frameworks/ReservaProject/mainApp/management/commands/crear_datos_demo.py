@@ -26,17 +26,15 @@ class Command(BaseCommand):
             count = Reserva.objects.all().delete()[0]
             self.stdout.write(self.style.SUCCESS(f'✓ {count} reservas eliminadas'))
 
-        # Asegurar que existen las mesas
+        # Asegurar que existen las mesas (solo 6 mesas)
         self.stdout.write(self.style.SUCCESS('\nVerificando mesas...'))
         mesas_data = [
             {'numero': 1, 'capacidad': 2},
             {'numero': 2, 'capacidad': 2},
             {'numero': 3, 'capacidad': 4},
             {'numero': 4, 'capacidad': 4},
-            {'numero': 5, 'capacidad': 4},
-            {'numero': 6, 'capacidad': 6},
-            {'numero': 7, 'capacidad': 6},
-            {'numero': 8, 'capacidad': 8},
+            {'numero': 5, 'capacidad': 6},
+            {'numero': 6, 'capacidad': 8},
         ]
 
         mesas = []
@@ -211,9 +209,10 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('\n' + '='*70))
         self.stdout.write(self.style.SUCCESS('CARACTERÍSTICAS DE LOS DATOS:'))
         self.stdout.write(self.style.SUCCESS('='*70))
-        self.stdout.write('  • Horarios pico (13:00-14:00, 20:00-21:00): 100% ocupación')
-        self.stdout.write('  • Horarios medios: 60-75% ocupación')
-        self.stdout.write('  • Horarios valle: 25-40% ocupación')
+        self.stdout.write('  • 6 mesas totales (capacidades: 2, 2, 4, 4, 6, 8)')
+        self.stdout.write('  • Horarios pico (13:00-14:00, 20:00-21:00): 100% ocupación (6/6 mesas)')
+        self.stdout.write('  • Horarios medios: 60-75% ocupación (4-5 mesas)')
+        self.stdout.write('  • Horarios valle: 25-40% ocupación (2-3 mesas)')
         self.stdout.write('  • Mezcla de estados: pendiente, activa, completada, cancelada')
         self.stdout.write('\nCredenciales de acceso:')
         self.stdout.write('  • Usuarios demo: demo1, demo2, ... demo20')
@@ -223,20 +222,20 @@ class Command(BaseCommand):
     def _calcular_distribucion_ocupacion(self, horarios):
         """
         Calcula cuántas mesas deben estar ocupadas en cada horario
-        para lograr una distribución equilibrada.
+        para lograr una distribución equilibrada (6 mesas totales).
         """
         distribucion = {}
 
         for hora in horarios:
-            # Horarios pico (100% ocupación - 8 mesas)
+            # Horarios pico (100% ocupación - 6 mesas)
             if (time(13, 0) <= hora <= time(14, 0)) or (time(20, 0) <= hora <= time(21, 0)):
-                num_mesas = 8
-            # Horarios medios (60-75% ocupación - 5-6 mesas)
+                num_mesas = 6
+            # Horarios medios (60-75% ocupación - 4-5 mesas)
             elif (time(12, 0) <= hora < time(13, 0)) or \
                  (time(14, 0) < hora < time(16, 0)) or \
                  (time(19, 0) <= hora < time(20, 0)) or \
                  (time(21, 0) < hora <= time(21, 30)):
-                num_mesas = random.randint(5, 6)
+                num_mesas = random.randint(4, 5)
             # Horarios valle (25-40% ocupación - 2-3 mesas)
             else:
                 num_mesas = random.randint(2, 3)

@@ -253,6 +253,7 @@ export default function ReservaPublica({ onReservaExitosa }) {
   };
 
   const onSubmit = handleSubmit(async (values) => {
+    console.log('🚀 INICIO handleSubmit - values:', values);
     try {
       // Revalidar disponibilidad
       const mesasDisponiblesActuales = await getMesas({
@@ -305,6 +306,7 @@ export default function ReservaPublica({ onReservaExitosa }) {
       // Guardar resultado para redirección posterior
       window._reservaResult = result;
     } catch (err) {
+      console.error('❌ ERROR en handleSubmit:', err);
       const errorMsg = formatErrorMessage(err);
       toast.error(errorMsg);
       throw err;

@@ -189,6 +189,7 @@ export default function FormularioReserva({ onReservaCreada }) {
 
   // Manejar el submit usando el hook de validación
   const onSubmit = handleSubmit(async (values) => {
+    console.log('🚀 INICIO handleSubmit - values:', values);
     try {
       // FIX #25 (MODERADO): Revalidar disponibilidad antes de submit
       const mesasDisponiblesActuales = await getMesas({
@@ -247,7 +248,7 @@ export default function FormularioReserva({ onReservaCreada }) {
       // Guardar para callback posterior
       window._nuevaReserva = nuevaReserva;
     } catch (err) {
-      console.error('Error completo:', err);
+      console.error('❌ ERROR en handleSubmit:', err);
       const errorMsg = formatErrorMessage(err);
       toast.error(errorMsg);
       throw err;
