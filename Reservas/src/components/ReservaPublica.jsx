@@ -31,8 +31,25 @@ export default function ReservaPublica({ onReservaExitosa }) {
   const validationRules = {
     fecha_reserva: (value) => {
       if (!value) return 'La fecha es requerida';
+
+      // Validar formato de fecha
+      const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!fechaRegex.test(value)) return 'Formato de fecha inválido';
+
+      // Validar que la fecha sea válida
+      const fecha = new Date(value + 'T00:00:00');
+      if (isNaN(fecha.getTime())) return 'La fecha ingresada no es válida';
+
+      // Validar año (no permitir años muy lejanos o pasados)
+      const year = fecha.getFullYear();
+      const currentYear = new Date().getFullYear();
+      if (year < currentYear) return 'No se pueden crear reservas para años pasados';
+      if (year > currentYear + 2) return `El año no puede ser mayor a ${currentYear + 2}`;
+
+      // Validar que no sea fecha pasada
       const fechaHoy = new Date().toISOString().split('T')[0];
       if (value < fechaHoy) return 'No se pueden crear reservas para fechas pasadas';
+
       return null;
     },
     hora_inicio: (value) => {
@@ -114,6 +131,23 @@ export default function ReservaPublica({ onReservaExitosa }) {
     }
     if (name === 'telefono' && value) {
       processedValue = formatearTelefono(value);
+    }
+
+    // Validar fecha antes de procesarla
+    if (name === 'fecha_reserva' && value) {
+      // Validar que el año esté en un rango razonable
+      const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (fechaRegex.test(value)) {
+        const year = parseInt(value.split('-')[0]);
+        const currentYear = new Date().getFullYear();
+
+        // Si el año es inválido, no actualizar el campo
+        if (year < currentYear || year > currentYear + 2) {
+          // Mostrar un toast de advertencia
+          toast.warning(`El año debe estar entre ${currentYear} y ${currentYear + 2}`);
+          return; // No actualizar el valor
+        }
+      }
     }
 
     // Crear evento sintético con valor procesado
@@ -239,6 +273,12 @@ export default function ReservaPublica({ onReservaExitosa }) {
 
   const getFechaMinima = () => new Date().toISOString().split('T')[0];
 
+  const getFechaMaxima = () => {
+    const fecha = new Date();
+    fecha.setFullYear(fecha.getFullYear() + 2);
+    return fecha.toISOString().split('T')[0];
+  };
+
   const generarOpcionesHora = () => {
     const opciones = [];
     for (let hora = 12; hora <= 21; hora++) {
@@ -281,6 +321,7 @@ export default function ReservaPublica({ onReservaExitosa }) {
                         onChange={handleChange}
                         onBlur={handleBlur}
                         min={getFechaMinima()}
+                        max={getFechaMaxima()}
                         required
                       />
                       {getFieldError('fecha_reserva') && (
