@@ -194,7 +194,8 @@ export async function getReservas(params = {}, options = {}) {
     page,
     page_size,
     pageSize,
-    search,  // Nuevo parámetro para búsqueda por cliente
+    search,  // Búsqueda por cliente (username, nombre, email)
+    all,     // Búsqueda global en todo el historial
   } = params;
 
   const { fetchAllPages = true } = options;
@@ -225,6 +226,11 @@ export async function getReservas(params = {}, options = {}) {
   // Búsqueda por cliente (username, nombre, email)
   if (search && search.trim() !== '') {
     searchParams.append('search', search.trim());
+  }
+
+  // Búsqueda global en todo el historial (sin límite de fecha)
+  if (all === 'true' || all === true) {
+    searchParams.append('all', 'true');
   }
 
   if (page) {

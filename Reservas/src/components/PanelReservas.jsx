@@ -65,6 +65,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const [searchPersonasMin, setSearchPersonasMin] = useState(savedFilters?.searchPersonasMin || "");
     const [searchPersonasMax, setSearchPersonasMax] = useState(savedFilters?.searchPersonasMax || "");
     const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+    const [searchAllHistory, setSearchAllHistory] = useState(savedFilters?.searchAllHistory || false);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -123,6 +124,10 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
             if (busqueda && busqueda.trim() !== '') {
                 filtros.search = busqueda.trim();
             }
+            // Búsqueda global en todo el historial (sin límite de fecha)
+            if (searchAllHistory && !showAllReservations) {
+                filtros.all = 'true';
+            }
             const data = await getReservas(filtros);
             setReservas(data);
         } catch (err) {
@@ -137,7 +142,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     useEffect(() => {
         cargarReservas();
         setCurrentPage(1); // Reset to first page on date change
-    }, [fecha, fechaInicio, fechaFin, showAllReservations]);
+    }, [fecha, fechaInicio, fechaFin, showAllReservations, searchAllHistory]);
 
     // Debounced search: Esperar 300ms después de que el usuario deje de escribir
     useEffect(() => {
@@ -195,6 +200,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
             searchHora,
             searchPersonasMin,
             searchPersonasMax,
+            searchAllHistory,
             fechaInicio,
             fechaFin,
             itemsPerPage,
@@ -202,7 +208,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
             sortDirection
         };
         sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
-    }, [fecha, fechaInicio, fechaFin, estadoFiltro, busqueda, searchHora, searchPersonasMin, searchPersonasMax, itemsPerPage, sortField, sortDirection, isBrowser, FILTERS_STORAGE_KEY]);
+    }, [fecha, fechaInicio, fechaFin, estadoFiltro, busqueda, searchHora, searchPersonasMin, searchPersonasMax, searchAllHistory, itemsPerPage, sortField, sortDirection, isBrowser, FILTERS_STORAGE_KEY]);
 
     // Handle window resize for mobile view
     useEffect(() => {
@@ -297,6 +303,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         setSearchHora("");
         setSearchPersonasMin("");
         setSearchPersonasMax("");
+        setSearchAllHistory(false);
         setSortField(null);
         setSortDirection('asc');
         setCurrentPage(1);
@@ -933,6 +940,28 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
 
                         {showAdvancedSearch && (
                             <div className="row g-3 mt-2">
+                                {/* Global search checkbox - only visible in single date mode */}
+                                {!showAllReservations && (
+                                    <div className="col-12">
+                                        <div className="form-check">
+                                            <input
+                                                className="form-check-input"
+                                                type="checkbox"
+                                                id="search-all-history"
+                                                checked={searchAllHistory}
+                                                onChange={(e) => setSearchAllHistory(e.target.checked)}
+                                            />
+                                            <label className="form-check-label" htmlFor="search-all-history">
+                                                <i className="bi bi-database me-1"></i>
+                                                Buscar en todo el historial
+                                            </label>
+                                            <small className="d-block text-muted ms-4">
+                                                Busca en todas las fechas (puede ser más lento con muchas reservas)
+                                            </small>
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="col-md-3">
                                     <label htmlFor="search-hora" className="form-label small">
                                         Hora
