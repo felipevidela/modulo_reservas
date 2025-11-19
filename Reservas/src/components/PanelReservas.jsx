@@ -71,9 +71,9 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(savedFilters?.itemsPerPage || 10);
 
-    // Auto-refresh state
+    // Auto-refresh state (automático para el día actual)
     const [autoRefresh, setAutoRefresh] = useState(false);
-    const [refreshInterval, setRefreshInterval] = useState(30); // seconds
+    const [refreshInterval] = useState(30); // seconds - fijo en 30 segundos
     const intervalRef = useRef(null);
 
     // Sorting state
@@ -168,6 +168,17 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         };
         precargarMesas();
     }, []); // Solo al montar
+
+    // Auto-activar refresh para el día actual
+    useEffect(() => {
+        if (!showAllReservations) {
+            const hoy = new Date().toISOString().slice(0, 10);
+            const esDiaActual = fecha === hoy;
+            setAutoRefresh(esDiaActual);
+        } else {
+            setAutoRefresh(false);
+        }
+    }, [fecha, showAllReservations]);
 
     // Auto-refresh effect
     useEffect(() => {
@@ -884,42 +895,10 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                         </div>
                     )}
 
-                    {/* Auto-refresh controls */}
-                    <div className="d-flex align-items-center gap-3 pt-2 border-top">
-                        <div className="form-check form-switch mb-0">
-                            <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="auto-refresh-toggle"
-                                checked={autoRefresh}
-                                onChange={(e) => setAutoRefresh(e.target.checked)}
-                            />
-                            <label className="form-check-label small" htmlFor="auto-refresh-toggle">
-                                <i className="bi bi-arrow-clockwise me-1"></i>
-                                Auto-actualizar
-                            </label>
-                        </div>
-                        {autoRefresh && (
-                            <div className="d-flex align-items-center gap-2">
-                                <label htmlFor="refresh-interval" className="small mb-0">
-                                    Intervalo:
-                                </label>
-                                <select
-                                    id="refresh-interval"
-                                    className="form-select form-select-sm"
-                                    style={{ width: '100px' }}
-                                    value={refreshInterval}
-                                    onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                                >
-                                    <option value="15">15 seg</option>
-                                    <option value="30">30 seg</option>
-                                    <option value="60">1 min</option>
-                                    <option value="120">2 min</option>
-                                </select>
-                            </div>
-                        )}
+                    {/* Manual refresh button */}
+                    <div className="d-flex justify-content-end pt-2 border-top">
                         <button
-                            className="btn btn-outline-secondary btn-sm ms-auto"
+                            className="btn btn-outline-secondary btn-sm"
                             onClick={cargarReservas}
                             disabled={loading}
                         >
