@@ -17,7 +17,12 @@ export default function ModalConfirmacionReserva({
   clienteData,
   esInvitado = false
 }) {
-  if (!reservaData) return null;
+  if (!reservaData) {
+    console.error('❌ Modal: reservaData is null/undefined', { isOpen, reservaData });
+    return null;
+  }
+
+  console.log('🎨 Modal rendering with:', { isOpen, reservaData, clienteData, esInvitado });
 
   // Formatear fecha a formato legible
   const formatearFecha = (fechaStr) => {

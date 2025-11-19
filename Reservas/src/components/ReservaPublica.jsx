@@ -270,6 +270,7 @@ export default function ReservaPublica({ onReservaExitosa }) {
 
       // Registrar y reservar
       const result = await registerAndReserve(values);
+      console.log('✅ API Response:', result);
 
       // Preparar datos para el modal
       const datosReserva = {
@@ -289,11 +290,14 @@ export default function ReservaPublica({ onReservaExitosa }) {
         telefono: values.telefono
       };
 
+      console.log('📋 Datos preparados para modal:', { datosReserva, datosCliente, esInvitado: result.es_invitado });
+
       // Guardar datos y abrir modal
       setDatosReservaConfirmada(datosReserva);
       setDatosClienteConfirmado(datosCliente);
       setEsInvitadoConfirmado(result.es_invitado);
       setMostrarModalConfirmacion(true);
+      console.log('🎯 Modal state set to true');
 
       // Mostrar toast breve
       toast.success('¡Reserva creada exitosamente!');

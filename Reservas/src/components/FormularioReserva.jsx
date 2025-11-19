@@ -215,6 +215,7 @@ export default function FormularioReserva({ onReservaCreada }) {
       console.log('Enviando reserva:', reservaData);
 
       const nuevaReserva = await createReserva(reservaData);
+      console.log('✅ API Response:', nuevaReserva);
 
       // Preparar datos para el modal (nota: usuarios registrados ya tienen perfil cargado)
       const datosReserva = {
@@ -227,9 +228,12 @@ export default function FormularioReserva({ onReservaCreada }) {
         num_personas: nuevaReserva.num_personas
       };
 
+      console.log('📋 Datos preparados para modal:', datosReserva);
+
       // Abrir modal de confirmación
       setDatosReservaConfirmada(datosReserva);
       setMostrarModalConfirmacion(true);
+      console.log('🎯 Modal state set to true');
 
       toast.success('¡Reserva creada exitosamente!');
 
