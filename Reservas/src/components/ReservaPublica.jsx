@@ -771,14 +771,16 @@ export default function ReservaPublica({ onReservaExitosa }) {
         </div>
       </div>
 
-      {/* Modal de Confirmación */}
-      <ModalConfirmacionReserva
-        isOpen={mostrarModalConfirmacion}
-        onClose={handleCloseModalConfirmacion}
-        reservaData={datosReservaConfirmada}
-        clienteData={datosClienteConfirmado}
-        esInvitado={esInvitadoConfirmado}
-      />
+      {/* Modal de Confirmación - solo renderizar cuando tenemos datos */}
+      {datosReservaConfirmada && (
+        <ModalConfirmacionReserva
+          isOpen={mostrarModalConfirmacion}
+          onClose={handleCloseModalConfirmacion}
+          reservaData={datosReservaConfirmada}
+          clienteData={datosClienteConfirmado}
+          esInvitado={esInvitadoConfirmado}
+        />
+      )}
     </div>
   );
 }
