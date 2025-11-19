@@ -104,6 +104,14 @@ class PerfilFactory(DjangoModelFactory):
         # Actualizar campos que el signal no configuró
         obj.nombre_completo = f'{obj.user.first_name} {obj.user.last_name}'
         obj.email = obj.user.email
+
+        # Generar RUT si no existe
+        if not obj.rut:
+            # Generar un RUT simple para testing
+            numero = obj.id if obj.id else 1
+            dv = numero % 10
+            obj.rut = f'1234567{numero % 10}-{dv}'
+
         obj.save()
 
 

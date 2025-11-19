@@ -99,6 +99,15 @@ class Mesa(models.Model):
     capacidad = models.IntegerField(default=4)
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default='disponible')
 
+    def clean(self):
+        """Validaciones del modelo Mesa"""
+        from django.core.exceptions import ValidationError
+
+        if self.capacidad is not None and self.capacidad < 1:
+            raise ValidationError({
+                'capacidad': 'La capacidad debe ser al menos 1 persona.'
+            })
+
     def __str__(self):
         return f"Mesa {self.numero} ({self.estado})"
 
@@ -111,6 +120,7 @@ class Mesa(models.Model):
 class Reserva(models.Model):
     ESTADO_CHOICES = (
         ('pendiente', 'Pendiente'),
+        ('confirmada', 'Confirmada'),
         ('activa', 'Activa'),
         ('completada', 'Completada'),
         ('cancelada', 'Cancelada'),
