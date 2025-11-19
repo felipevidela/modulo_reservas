@@ -919,24 +919,26 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
 
                         {showAdvancedSearch && (
                             <div className="row g-3 mt-2">
-                                {/* Global search checkbox - only visible in single date mode */}
+                                {/* Global search checkbox - always visible in advanced search */}
                                 {!showAllReservations && (
-                                    <div className="col-12">
-                                        <div className="form-check">
-                                            <input
-                                                className="form-check-input"
-                                                type="checkbox"
-                                                id="search-all-history"
-                                                checked={searchAllHistory}
-                                                onChange={(e) => setSearchAllHistory(e.target.checked)}
-                                            />
-                                            <label className="form-check-label" htmlFor="search-all-history">
-                                                <i className="bi bi-database me-1"></i>
-                                                Buscar en todo el historial
-                                            </label>
-                                            <small className="d-block text-muted ms-4">
-                                                Busca en todas las fechas (puede ser más lento con muchas reservas)
-                                            </small>
+                                    <div className="col-12 mb-2">
+                                        <div className="alert alert-info py-2 px-3 mb-0">
+                                            <div className="form-check mb-0">
+                                                <input
+                                                    className="form-check-input"
+                                                    type="checkbox"
+                                                    id="search-all-history"
+                                                    checked={searchAllHistory}
+                                                    onChange={(e) => setSearchAllHistory(e.target.checked)}
+                                                />
+                                                <label className="form-check-label" htmlFor="search-all-history">
+                                                    <i className="bi bi-database me-1"></i>
+                                                    <strong>Buscar en todo el historial</strong>
+                                                </label>
+                                                <div className="small text-muted mt-1">
+                                                    Por defecto se busca en los últimos 7 días + reservas futuras. Activa esta opción para buscar en todas las fechas.
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
