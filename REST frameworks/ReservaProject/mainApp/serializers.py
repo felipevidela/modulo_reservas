@@ -227,7 +227,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         nombre_completo = f"{nombre} {apellido}"
         rut = validated_data.pop('rut')
         telefono = validated_data.pop('telefono')
-        email_perfil = validated_data.pop('email_perfil', '')
+        email_perfil = validated_data.pop('email_perfil', None) or None
         validated_data.pop('password_confirm', None)
 
         # Determinar si es usuario invitado (sin password)
