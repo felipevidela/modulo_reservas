@@ -69,6 +69,10 @@ const ERROR_MESSAGES = {
     message: 'El RUT ingresado ya fue utilizado.',
     suggestion: 'Si ya tienes una cuenta, inicia sesión; de lo contrario usa otro RUT.',
   },
+  'El RUT ingresado no coincide con tu cuenta existente': {
+    message: 'El RUT ingresado no coincide con tu cuenta existente.',
+    suggestion: 'Verifica tus datos o contacta al administrador si necesitas actualizar tu información.',
+  },
   'duplicate key value violates unique constraint': {
     message: 'Algunos datos ya estaban registrados (correo o RUT duplicados).',
     suggestion: 'Verifica que el correo y el RUT no estén en uso o inicia sesión con tu cuenta.',

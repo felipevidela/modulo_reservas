@@ -115,13 +115,18 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         FIX #24 (MODERADO): Validar email duplicado en User
         NUEVO: Validar contraseña solo si se proporciona (soporte para invitados)
+        NUEVO #231: Soportar allow_existing_user para permitir múltiples reservas del mismo usuario
         """
         email = data.get('email')
         username = data.get('username') or email
         rut_normalizado = data.get('rut')
 
+        # Obtener flag del contexto para permitir usuarios existentes
+        allow_existing_user = self.context.get('allow_existing_user', False)
+
         # FIX #24 (MODERADO): Validar que el email/username no esté en uso
-        if email:
+        # EXCEPTO si allow_existing_user=True (para reservas múltiples)
+        if email and not allow_existing_user:
             if User.objects.filter(email=email).exists():
                 raise serializers.ValidationError({
                     'email': 'Este correo ya está registrado. Usa otro correo o inicia sesión con tu cuenta existente.'
@@ -131,12 +136,23 @@ class RegisterSerializer(serializers.ModelSerializer):
                     'email': 'Este correo ya tiene una reserva registrada.'
                 })
 
-        if username and User.objects.filter(username=username).exists():
+        if username and User.objects.filter(username=username).exists() and not allow_existing_user:
             raise serializers.ValidationError({
                 'email': 'Ya existe una cuenta asociada a este correo. Inicia sesión o elige otro correo.'
             })
 
-        if rut_normalizado and Perfil.objects.filter(rut=rut_normalizado).exists():
+        # Si allow_existing_user=True y el usuario existe, validar que el RUT coincida
+        if allow_existing_user and email:
+            existing_user = User.objects.filter(email=email).first()
+            if existing_user and hasattr(existing_user, 'perfil'):
+                existing_perfil = existing_user.perfil
+                # Solo validar RUT si ambos tienen RUT (no vacío)
+                if rut_normalizado and existing_perfil.rut and rut_normalizado != existing_perfil.rut:
+                    raise serializers.ValidationError({
+                        'rut': 'El RUT ingresado no coincide con tu cuenta existente. Verifica tus datos o contacta al administrador.'
+                    })
+
+        if rut_normalizado and Perfil.objects.filter(rut=rut_normalizado).exists() and not allow_existing_user:
             raise serializers.ValidationError({
                 'rut': 'El RUT ingresado ya se encuentra registrado.'
             })
@@ -191,8 +207,19 @@ class RegisterSerializer(serializers.ModelSerializer):
         """
         Crear usuario y perfil con todos los datos.
         Si no hay contraseña, crear usuario invitado con password aleatoria.
+        NUEVO #231: Si allow_existing_user=True y el usuario existe, retornar usuario existente.
         """
         import secrets
+
+        # Verificar si debemos reutilizar usuario existente
+        allow_existing_user = self.context.get('allow_existing_user', False)
+        email = validated_data.get('email')
+
+        if allow_existing_user and email:
+            existing_user = User.objects.filter(email=email).first()
+            if existing_user:
+                # Usuario existe, retornarlo sin crear uno nuevo
+                return existing_user
 
         # Extraer campos que no pertenecen al modelo User
         nombre = validated_data.pop('nombre')

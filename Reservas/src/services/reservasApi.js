@@ -90,30 +90,39 @@ export async function registerAndReserve(data) {
     body: JSON.stringify(data),
   });
 
-  if (!response.ok) {
-    const error = await response.json();
-    // Formatear errores del backend
-    if (error.details) {
-      const errorMessages = Object.entries(error.details)
-        .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-        .join('\n');
-      throw new Error(errorMessages || error.error);
-    }
-    throw new Error(error.error || 'Error al crear la reserva');
-  }
-
+  // FIX #231: Manejar respuesta con requires_confirmation
   const responseData = await response.json();
 
-  // Guardar token y datos de usuario en localStorage (auto-login)
-  localStorage.setItem('token', responseData.token);
-  localStorage.setItem('user', JSON.stringify({
-    id: responseData.user_id,
-    username: responseData.username,
-    email: responseData.email,
-    rol: responseData.rol,
-    rol_display: responseData.rol_display,
-    nombre_completo: responseData.nombre_completo
-  }));
+  // Si el backend solicita confirmación (status 200 con requires_confirmation)
+  if (response.status === 200 && responseData.requires_confirmation) {
+    // Retornar datos para que el frontend muestre modal de confirmación
+    return responseData;
+  }
+
+  // Para otros casos de error
+  if (!response.ok) {
+    // Formatear errores del backend
+    if (responseData.details) {
+      const errorMessages = Object.entries(responseData.details)
+        .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+        .join('\n');
+      throw new Error(errorMessages || responseData.error);
+    }
+    throw new Error(responseData.error || 'Error al crear la reserva');
+  }
+
+  // Guardar token y datos de usuario en localStorage (auto-login) solo si la reserva fue creada
+  if (responseData.token) {
+    localStorage.setItem('token', responseData.token);
+    localStorage.setItem('user', JSON.stringify({
+      id: responseData.user_id,
+      username: responseData.username,
+      email: responseData.email,
+      rol: responseData.rol,
+      rol_display: responseData.rol_display,
+      nombre_completo: responseData.nombre_completo
+    }));
+  }
 
   return responseData;
 }

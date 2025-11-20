@@ -89,18 +89,24 @@ def register_and_reserve(request):
     Endpoint combinado: registrar usuario y crear reserva en una sola transacción.
     Pensado para el flujo de reserva pública.
 
-    Soporta dos flujos:
+    Soporta tres flujos:
     1. Con contraseña: usuario registrado con cuenta completa
     2. Sin contraseña: usuario invitado (genera password aleatoria + token)
+    3. Usuario existente: permite múltiples reservas del mismo usuario (FIX #231)
 
     POST /api/register-and-reserve/
     Body: {
         # Datos del usuario
         email, password (opcional), password_confirm (opcional), nombre, apellido, rut, telefono,
         # Datos de la reserva
-        mesa, fecha_reserva, hora_inicio, num_personas, notas (opcional)
+        mesa, fecha_reserva, hora_inicio, num_personas, notas (opcional),
+        # Flag de confirmación (opcional, para usuarios existentes)
+        confirm_existing: boolean
     }
     Rate limit: 5 intentos por hora
+
+    FIX #231: Si el email existe y no se proporciona confirm_existing=true,
+    retorna requires_confirmation=true para que el frontend pida confirmación.
     """
     from django.db import transaction
     from .email_service import enviar_email_confirmacion_invitado, enviar_email_confirmacion_usuario_registrado
@@ -126,10 +132,38 @@ def register_and_reserve(request):
         'notas': request.data.get('notas', ''),
     }
 
+    # FIX #231: Verificar si el usuario ya existe y si fue confirmado
+    email = request.data.get('email')
+    confirm_existing = request.data.get('confirm_existing', False)
+
     try:
+        # Verificar si el usuario existe
+        existing_user = User.objects.filter(email=email).first() if email else None
+
+        # Si existe y NO fue confirmado, solicitar confirmación
+        if existing_user and not confirm_existing:
+            perfil = existing_user.perfil
+            # Contar reservas existentes
+            reservas_count = Reserva.objects.filter(cliente=existing_user).count()
+
+            return Response({
+                'requires_confirmation': True,
+                'user_exists': True,
+                'user_info': {
+                    'nombre_completo': perfil.nombre_completo,
+                    'email': existing_user.email,
+                    'es_invitado': perfil.es_invitado
+                },
+                'reservas_count': reservas_count,
+                'message': f'Ya tienes una cuenta con {reservas_count} reserva(s). ¿Deseas agregar esta nueva reserva a tu perfil?'
+            }, status=status.HTTP_200_OK)
+
         with transaction.atomic():
-            # 1. Registrar usuario (puede ser invitado o con cuenta)
-            user_serializer = RegisterSerializer(data=user_data)
+            # 1. Registrar usuario (puede ser invitado, con cuenta, o reutilizar existente)
+            # Si existe y fue confirmado, pasar contexto para permitir reutilización
+            context = {'allow_existing_user': confirm_existing} if confirm_existing else {}
+            user_serializer = RegisterSerializer(data=user_data, context=context)
+
             if not user_serializer.is_valid():
                 return Response({
                     'error': 'Datos de usuario inválidos',
@@ -167,17 +201,27 @@ def register_and_reserve(request):
             # 5. Obtener perfil del usuario
             perfil = user.perfil
 
-            # 6. Enviar email de confirmación según tipo de usuario
+            # 6. Contar reservas totales del usuario (FIX #231)
+            reservas_count = Reserva.objects.filter(cliente=user).count()
+            is_additional_reservation = reservas_count > 1
+
+            # 7. Enviar email de confirmación según tipo de usuario
             if perfil.es_invitado:
                 # Usuario invitado: enviar email con link único y link de activación
                 enviar_email_confirmacion_invitado(reserva, perfil)
-                mensaje_respuesta = '¡Reserva confirmada! Revisa tu email para ver los detalles y un link para gestionar tu reserva.'
+                if is_additional_reservation:
+                    mensaje_respuesta = f'¡Reserva confirmada! Ahora tienes {reservas_count} reservas. Revisa tu email para ver los detalles.'
+                else:
+                    mensaje_respuesta = '¡Reserva confirmada! Revisa tu email para ver los detalles y un link para gestionar tu reserva.'
             else:
                 # Usuario registrado: enviar email de bienvenida con link al dashboard
                 enviar_email_confirmacion_usuario_registrado(reserva, perfil)
-                mensaje_respuesta = '¡Reserva creada exitosamente! Tu cuenta ha sido registrada.'
+                if is_additional_reservation:
+                    mensaje_respuesta = f'¡Reserva creada exitosamente! Ahora tienes {reservas_count} reservas activas.'
+                else:
+                    mensaje_respuesta = '¡Reserva creada exitosamente! Tu cuenta ha sido registrada.'
 
-            # 7. Preparar respuesta
+            # 8. Preparar respuesta
             response_data = {
                 'user_id': user.id,
                 'username': user.username,
@@ -186,6 +230,8 @@ def register_and_reserve(request):
                 'rol_display': perfil.get_rol_display(),
                 'nombre_completo': perfil.nombre_completo,
                 'es_invitado': perfil.es_invitado,
+                'reservas_count': reservas_count,  # FIX #231: Incluir contador
+                'is_additional_reservation': is_additional_reservation,  # FIX #231: Flag para frontend
                 'reserva': {
                     'id': reserva.id,
                     'mesa_numero': reserva.mesa.numero,

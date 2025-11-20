@@ -9,13 +9,17 @@ import Modal from './Modal';
  * @param {object} reservaData - Datos de la reserva (id, mesa, fecha, hora, etc.)
  * @param {object} clienteData - Datos del cliente (nombre, email, teléfono)
  * @param {boolean} esInvitado - Si es un usuario invitado o registrado
+ * @param {number} reservasCount - FIX #231: Número total de reservas del usuario
+ * @param {boolean} isAdditionalReservation - FIX #231: Si es una reserva adicional (no la primera)
  */
 export default function ModalConfirmacionReserva({
   isOpen,
   onClose,
   reservaData,
   clienteData,
-  esInvitado = false
+  esInvitado = false,
+  reservasCount = 1,
+  isAdditionalReservation = false
 }) {
   if (!reservaData) {
     console.error('❌ Modal: reservaData is null/undefined', { isOpen, reservaData });
@@ -63,9 +67,15 @@ export default function ModalConfirmacionReserva({
           </div>
         </div>
 
-        {/* Título */}
-        <h3 className="fw-bold text-success mb-2">¡Reserva Confirmada!</h3>
-        <p className="text-muted mb-4">Tu reserva ha sido creada exitosamente</p>
+        {/* Título - FIX #231: Mensaje personalizado para reservas adicionales */}
+        <h3 className="fw-bold text-success mb-2">
+          {isAdditionalReservation ? '¡Reserva Agregada!' : '¡Reserva Confirmada!'}
+        </h3>
+        <p className="text-muted mb-4">
+          {isAdditionalReservation
+            ? `Ahora tienes ${reservasCount} ${reservasCount === 1 ? 'reserva' : 'reservas'} activas`
+            : 'Tu reserva ha sido creada exitosamente'}
+        </p>
       </div>
 
       {/* Número de Confirmación */}

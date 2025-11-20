@@ -15,6 +15,7 @@ import { useToast } from '../contexts/ToastContext';
 import { formatErrorMessage } from '../utils/errorMessages';
 import { FormSkeleton } from './ui/Skeleton';
 import ModalConfirmacionReserva from './ui/ModalConfirmacionReserva';
+import ModalConfirmacionUsuarioExistente from './ui/ModalConfirmacionUsuarioExistente';
 
 export default function ReservaPublica({ onReservaExitosa }) {
   const toast = useToast();
@@ -32,6 +33,11 @@ export default function ReservaPublica({ onReservaExitosa }) {
   const [datosReservaConfirmada, setDatosReservaConfirmada] = useState(null);
   const [datosClienteConfirmado, setDatosClienteConfirmado] = useState(null);
   const [esInvitadoConfirmado, setEsInvitadoConfirmado] = useState(false);
+
+  // FIX #231: Estados para confirmar usuario existente
+  const [mostrarModalUsuarioExistente, setMostrarModalUsuarioExistente] = useState(false);
+  const [datosUsuarioExistente, setDatosUsuarioExistente] = useState(null);
+  const [reservasPendientes, setReservasPendientes] = useState(null); // Guardar datos para reenviar
 
   // Reglas de validación
   const validationRules = {
@@ -262,7 +268,10 @@ export default function ReservaPublica({ onReservaExitosa }) {
       fecha_reserva: reservaPayload.fecha_reserva ?? apiResult?.fecha_reserva ?? formValues.fecha_reserva,
       hora_inicio: reservaPayload.hora_inicio ?? apiResult?.hora_inicio ?? formValues.hora_inicio,
       hora_fin: reservaPayload.hora_fin ?? apiResult?.hora_fin ?? null,
-      num_personas: reservaPayload.num_personas ?? apiResult?.num_personas ?? formValues.num_personas
+      num_personas: reservaPayload.num_personas ?? apiResult?.num_personas ?? formValues.num_personas,
+      // FIX #231: Agregar información de reservas adicionales
+      reservas_count: apiResult?.reservas_count ?? 1,
+      is_additional_reservation: apiResult?.is_additional_reservation ?? false
     };
   };
 
@@ -287,6 +296,18 @@ export default function ReservaPublica({ onReservaExitosa }) {
       const result = await registerAndReserve(values);
       console.log('✅ API Response:', result);
 
+      // FIX #231: Verificar si requiere confirmación de usuario existente
+      if (result.requires_confirmation && result.user_exists) {
+        console.log('👤 Usuario existente detectado - mostrando modal de confirmación');
+        setDatosUsuarioExistente({
+          user_info: result.user_info,
+          reservas_count: result.reservas_count
+        });
+        setReservasPendientes(values); // Guardar datos para reenviar
+        setMostrarModalUsuarioExistente(true);
+        return; // No continuar con el flujo normal
+      }
+
       // Preparar datos para el modal (maneja respuestas planas o anidadas)
       const datosReserva = prepararDatosReservaParaModal(result, values);
 
@@ -306,8 +327,12 @@ export default function ReservaPublica({ onReservaExitosa }) {
       setMostrarModalConfirmacion(true);
       console.log('🎯 Modal state set to true');
 
-      // Mostrar toast breve
-      toast.success('¡Reserva creada exitosamente!');
+      // Mostrar toast breve con mensaje personalizado (FIX #231)
+      if (result.is_additional_reservation) {
+        toast.success(`¡Reserva creada exitosamente! Ahora tienes ${result.reservas_count} reservas.`);
+      } else {
+        toast.success('¡Reserva creada exitosamente!');
+      }
 
       // Guardar resultado para redirección posterior
       window._reservaResult = result;
@@ -334,6 +359,68 @@ export default function ReservaPublica({ onReservaExitosa }) {
         }
       }
     }, 300);
+  };
+
+  // FIX #231: Manejar confirmación de usuario existente
+  const handleConfirmUsuarioExistente = async () => {
+    console.log('✅ Usuario confirmó agregar reserva a perfil existente');
+
+    // Cerrar modal de confirmación
+    setMostrarModalUsuarioExistente(false);
+
+    try {
+      // Reenviar datos con flag confirm_existing=true
+      const datosConConfirmacion = {
+        ...reservasPendientes,
+        confirm_existing: true
+      };
+
+      const result = await registerAndReserve(datosConConfirmacion);
+      console.log('✅ Reserva creada con usuario existente:', result);
+
+      // Continuar con flujo normal de confirmación
+      const datosReserva = prepararDatosReservaParaModal(result, reservasPendientes);
+
+      const datosCliente = {
+        nombre: reservasPendientes.nombre,
+        apellido: reservasPendientes.apellido,
+        email: reservasPendientes.email,
+        telefono: reservasPendientes.telefono
+      };
+
+      // Guardar datos y abrir modal de confirmación
+      setDatosReservaConfirmada(datosReserva);
+      setDatosClienteConfirmado(datosCliente);
+      setEsInvitadoConfirmado(result.es_invitado);
+      setMostrarModalConfirmacion(true);
+
+      // Mostrar toast personalizado
+      if (result.is_additional_reservation) {
+        toast.success(`¡Reserva agregada exitosamente! Ahora tienes ${result.reservas_count} reservas.`);
+      } else {
+        toast.success('¡Reserva creada exitosamente!');
+      }
+
+      // Guardar resultado para redirección
+      window._reservaResult = result;
+
+      // Limpiar datos pendientes
+      setReservasPendientes(null);
+      setDatosUsuarioExistente(null);
+    } catch (err) {
+      console.error('❌ ERROR al confirmar usuario existente:', err);
+      const errorMsg = formatErrorMessage(err);
+      toast.error(errorMsg);
+    }
+  };
+
+  // FIX #231: Manejar cancelación de confirmación de usuario existente
+  const handleCancelUsuarioExistente = () => {
+    console.log('❌ Usuario canceló agregar reserva a perfil existente');
+    setMostrarModalUsuarioExistente(false);
+    setReservasPendientes(null);
+    setDatosUsuarioExistente(null);
+    toast.info('Reserva cancelada');
   };
 
   const getFechaMinima = () => new Date().toISOString().split('T')[0];
@@ -785,6 +872,19 @@ export default function ReservaPublica({ onReservaExitosa }) {
           reservaData={datosReservaConfirmada}
           clienteData={datosClienteConfirmado}
           esInvitado={esInvitadoConfirmado}
+          reservasCount={datosReservaConfirmada.reservas_count || 1}
+          isAdditionalReservation={datosReservaConfirmada.is_additional_reservation || false}
+        />
+      )}
+
+      {/* FIX #231: Modal de Confirmación de Usuario Existente */}
+      {datosUsuarioExistente && (
+        <ModalConfirmacionUsuarioExistente
+          isOpen={mostrarModalUsuarioExistente}
+          onClose={handleCancelUsuarioExistente}
+          onConfirm={handleConfirmUsuarioExistente}
+          userData={datosUsuarioExistente.user_info}
+          reservasCount={datosUsuarioExistente.reservas_count}
         />
       )}
     </div>
