@@ -142,6 +142,12 @@ def register_and_reserve(request):
 
         # Si existe y NO fue confirmado, solicitar confirmación
         if existing_user and not confirm_existing:
+            # Verificar que tenga perfil
+            if not hasattr(existing_user, 'perfil'):
+                return Response({
+                    'error': 'El usuario existe pero no tiene perfil asociado. Contacte al administrador.',
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
             perfil = existing_user.perfil
             # Contar reservas existentes
             reservas_count = Reserva.objects.filter(cliente=existing_user).count()
