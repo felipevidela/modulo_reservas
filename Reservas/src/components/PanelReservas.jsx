@@ -372,6 +372,11 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                     bVal = parseInt(bVal) || 0;
                 }
 
+                if (sortField === 'fecha') {
+                    aVal = aVal ? new Date(`${aVal}T00:00:00`).getTime() : 0;
+                    bVal = bVal ? new Date(`${bVal}T00:00:00`).getTime() : 0;
+                }
+
                 if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
                 if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
                 return 0;
@@ -1408,6 +1413,10 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                             </div>
                                             <div className="row g-2 mb-2">
                                                 <div className="col-6">
+                                                    <small className="text-muted d-block">Fecha</small>
+                                                    <strong>{formatearFechaCorta(reserva.fecha)}</strong>
+                                                </div>
+                                                <div className="col-6">
                                                     <small className="text-muted d-block">Mesa</small>
                                                     <strong>{reserva.mesa}</strong>
                                                 </div>
@@ -1464,6 +1473,16 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                         </th>
                                         <th
                                             role="button"
+                                            onClick={() => handleSort('fecha')}
+                                            className="user-select-none"
+                                        >
+                                            Fecha
+                                            {sortField === 'fecha' && (
+                                                <i className={`bi bi-arrow-${sortDirection === 'asc' ? 'up' : 'down'} ms-1`}></i>
+                                            )}
+                                        </th>
+                                        <th
+                                            role="button"
                                             onClick={() => handleSort('hora')}
                                             className="user-select-none"
                                         >
@@ -1503,6 +1522,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                             <td>{numeroGlobal}</td>
                                             <td>{reserva.cliente}</td>
                                             <td>{reserva.mesa}</td>
+                                            <td>{formatearFechaCorta(reserva.fecha)}</td>
                                             <td>{formatearHora(reserva.hora)} hrs</td>
                                             <td>{reserva.personas}</td>
                                             <td>
@@ -1521,7 +1541,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
 
                                     {reservasFiltradas.length === 0 && !loading && (
                                         <tr>
-                                            <td colSpan="7" className="text-center text-muted py-4">
+                                            <td colSpan="8" className="text-center text-muted py-4">
                                                 No hay reservas para los filtros seleccionados.
                                             </td>
                                         </tr>
