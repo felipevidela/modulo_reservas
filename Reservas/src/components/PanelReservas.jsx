@@ -55,14 +55,12 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         : (showAllReservations ? defaultFechaInicio() : '');
     const initialFechaFin = savedFilters?.fechaFin || '';
     const initialEstadoFiltro = savedFilters?.estadoFiltro || "TODOS";
-    const initialBusqueda = (savedFilters?.busqueda || "").trim();
-    const initialBusquedaInput = savedFilters?.busqueda || "";
     const initialSearchAllHistory = savedFilters?.searchAllHistory || false;
 
     const [fechaInicio, setFechaInicio] = useState(initialFechaInicio);
     const [fechaFin, setFechaFin] = useState(initialFechaFin);
     const [estadoFiltro, setEstadoFiltro] = useState(initialEstadoFiltro);
-    const [busquedaInput, setBusquedaInput] = useState(initialBusquedaInput);
+    const [busqueda, setBusqueda] = useState(savedFilters?.busqueda || "");
 
     // Advanced search state
     const [searchHora, setSearchHora] = useState(savedFilters?.searchHora || "");
@@ -96,15 +94,6 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
     const [lastUpdated, setLastUpdated] = useState(null);
 
-    const [appliedFilters, setAppliedFilters] = useState({
-        fecha: initialFecha,
-        fechaInicio: initialFechaInicio,
-        fechaFin: initialFechaFin,
-        estadoFiltro: initialEstadoFiltro,
-        searchAllHistory: initialSearchAllHistory,
-        busqueda: initialBusqueda
-    });
-
     // Autocomplete state
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
     const [showAutocomplete, setShowAutocomplete] = useState(false);
@@ -129,69 +118,35 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const [mesasCache, setMesasCache] = useState(null);
     const [mesasCacheTimestamp, setMesasCacheTimestamp] = useState(null);
 
-    const {
-        fecha: appliedFecha,
-        fechaInicio: appliedFechaInicio,
-        fechaFin: appliedFechaFin,
-        estadoFiltro: appliedEstadoFiltro,
-        searchAllHistory: appliedSearchAllHistory,
-        busqueda: appliedBusqueda
-    } = appliedFilters;
-
-    const trimmedBusqueda = (appliedBusqueda || '').trim();
-    const trimmedBusquedaInput = busquedaInput.trim();
+    const trimmedBusqueda = busqueda.trim();
     const isSearchingByName = trimmedBusqueda !== '';
-    const historialActivo = appliedSearchAllHistory && isSearchingByName && !showAllReservations;
-    const historialPendiente = !historialActivo &&
-        searchAllHistory &&
-        busquedaInput.trim().length >= 2 &&
-        !showAllReservations;
-    const hasPendingFilterChanges =
-        fecha !== appliedFecha ||
-        fechaInicio !== appliedFechaInicio ||
-        fechaFin !== appliedFechaFin ||
-        estadoFiltro !== appliedEstadoFiltro ||
-        searchAllHistory !== appliedSearchAllHistory;
-    const hasPendingSearchChanges = trimmedBusquedaInput !== trimmedBusqueda;
-    const isSearchButtonDisabled = !(hasPendingFilterChanges || hasPendingSearchChanges);
+    const historialActivo = searchAllHistory && isSearchingByName && !showAllReservations;
 
     // Función para cargar reservas (reutilizable)
-    const cargarReservas = async (overrideFilters = null) => {
+    const cargarReservas = async () => {
         try {
             setLoading(true);
             setError("");
             const filtros = {};
-            const filtersToUse = overrideFilters || appliedFilters;
-            const {
-                fecha: targetFecha,
-                fechaInicio: targetFechaInicio,
-                fechaFin: targetFechaFin,
-                estadoFiltro: targetEstado,
-                searchAllHistory: targetSearchAllHistory,
-                busqueda: targetBusqueda
-            } = filtersToUse;
-
-            const normalizedSearch = (targetBusqueda || '').trim();
-            const searchingByName = normalizedSearch !== '';
 
             // Date range mode (for showAllReservations OR when range is set in normal mode)
-            if (showAllReservations || (targetFechaInicio || targetFechaFin)) {
-                if (targetFechaInicio) filtros.fecha_inicio = targetFechaInicio;
-                if (targetFechaFin) filtros.fecha_fin = targetFechaFin;
-            } else if (targetFecha && !searchingByName) {
+            if (showAllReservations || (fechaInicio || fechaFin)) {
+                if (fechaInicio) filtros.fecha_inicio = fechaInicio;
+                if (fechaFin) filtros.fecha_fin = fechaFin;
+            } else if (fecha && !isSearchingByName) {
                 // Single date mode - only if NOT searching by name and NO range set
-                filtros.fecha = targetFecha;
+                filtros.fecha = fecha;
             }
 
-            if (targetEstado && targetEstado !== "TODOS") {
-                filtros.estado = targetEstado.toLowerCase();
+            if (estadoFiltro && estadoFiltro !== "TODOS") {
+                filtros.estado = estadoFiltro.toLowerCase();
             }
 
             // Agregar búsqueda por cliente (nombre, email, username)
-            if (searchingByName) {
-                filtros.search = normalizedSearch;
+            if (isSearchingByName) {
+                filtros.search = trimmedBusqueda;
                 // Apply searchAllHistory flag when searching
-                if (targetSearchAllHistory && !showAllReservations) {
+                if (searchAllHistory && !showAllReservations) {
                     filtros.all = 'true';
                 }
                 // Otherwise backend will auto-limit to 7 days + future reservations
@@ -254,17 +209,27 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         }
     };
 
-    // Cargar reservas cuando los filtros aplicados cambian
+    // Cargar reservas al cambiar filtros relevantes
     useEffect(() => {
-        cargarReservas(appliedFilters);
-        setCurrentPage(1);
-    }, [appliedFilters, showAllReservations]);
+        cargarReservas();
+        setCurrentPage(1); // Reset to first page on date change
+    }, [fecha, fechaInicio, fechaFin, showAllReservations, searchAllHistory, estadoFiltro]);
+
+    // Debounced search: Esperar 300ms después de que el usuario deje de escribir
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            cargarReservas();
+            setCurrentPage(1); // Reset to first page on search
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [busqueda]);
 
     // Debounced autocomplete: Fetch suggestions as user types
     useEffect(() => {
         const timer = setTimeout(() => {
-            if (busquedaInput && busquedaInput.trim().length >= 2) {
-                fetchAutocompleteSuggestions(busquedaInput);
+            if (busqueda && busqueda.trim().length >= 2) {
+                fetchAutocompleteSuggestions(busqueda);
             } else {
                 setShowAutocomplete(false);
                 setAutocompleteSuggestions([]);
@@ -272,7 +237,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         }, 200); // Faster response for autocomplete
 
         return () => clearTimeout(timer);
-    }, [busquedaInput]);
+    }, [busqueda]);
 
     // Click outside to close autocomplete
     useEffect(() => {
@@ -312,18 +277,18 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     useEffect(() => {
         if (!showAllReservations) {
             const hoy = new Date().toISOString().slice(0, 10);
-            const esDiaActual = appliedFecha === hoy;
+            const esDiaActual = fecha === hoy;
             setAutoRefresh(esDiaActual);
         } else {
             setAutoRefresh(false);
         }
-    }, [appliedFecha, showAllReservations]);
+    }, [fecha, showAllReservations]);
 
     // Auto-refresh effect
     useEffect(() => {
         if (autoRefresh) {
             intervalRef.current = setInterval(() => {
-                cargarReservas(appliedFilters);
+                cargarReservas();
             }, refreshInterval * 1000);
         } else {
             if (intervalRef.current) {
@@ -338,22 +303,27 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                 clearInterval(intervalRef.current);
             }
         };
-    }, [autoRefresh, refreshInterval, appliedFilters]);
+    }, [autoRefresh, refreshInterval, fecha]);
 
     // Save filters to sessionStorage
     useEffect(() => {
         if (!isBrowser) return;
         const filters = {
-            ...appliedFilters,
+            fecha,
+            estadoFiltro,
+            busqueda,
             searchHora,
             searchPersonasMin,
             searchPersonasMax,
+            searchAllHistory,
+            fechaInicio,
+            fechaFin,
             itemsPerPage,
             sortField,
             sortDirection
         };
         sessionStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
-    }, [appliedFilters, searchHora, searchPersonasMin, searchPersonasMax, itemsPerPage, sortField, sortDirection, isBrowser, FILTERS_STORAGE_KEY]);
+    }, [fecha, fechaInicio, fechaFin, estadoFiltro, busqueda, searchHora, searchPersonasMin, searchPersonasMax, searchAllHistory, itemsPerPage, sortField, sortDirection, isBrowser, FILTERS_STORAGE_KEY]);
 
     // Handle window resize for mobile view
     useEffect(() => {
@@ -371,7 +341,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const reservasFiltradas = useMemo(() => {
         let filtered = reservas.filter((r) => {
             const coincideEstado =
-                appliedEstadoFiltro === "TODOS" || r.estado === appliedEstadoFiltro;
+                estadoFiltro === "TODOS" || r.estado === estadoFiltro;
 
             // Advanced search filters
             const coincideHora = !searchHora || (r.hora && r.hora.includes(searchHora));
@@ -416,7 +386,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         }
 
         return filtered;
-    }, [reservas, appliedEstadoFiltro, searchHora, searchPersonasMin, searchPersonasMax, sortField, sortDirection]);
+    }, [reservas, estadoFiltro, searchHora, searchPersonasMin, searchPersonasMax, sortField, sortDirection]);
 
     // Pagination logic
     const totalPages = Math.ceil(reservasFiltradas.length / itemsPerPage);
@@ -429,7 +399,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [appliedEstadoFiltro, appliedBusqueda, searchHora, searchPersonasMin, searchPersonasMax]);
+    }, [estadoFiltro, busqueda, searchHora, searchPersonasMin, searchPersonasMax]);
 
     // Function to handle column sorting
     const handleSort = (field) => {
@@ -445,13 +415,11 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
 
     // Function to clear all filters
     const clearAllFilters = () => {
-        const defaultFechaValue = showAllReservations ? '' : new Date().toISOString().split('T')[0];
-        const defaultFechaInicioValue = showAllReservations ? defaultFechaInicio() : '';
-        setFecha(defaultFechaValue);
-        setFechaInicio(defaultFechaInicioValue);
+        setFecha(showAllReservations ? '' : new Date().toISOString().split('T')[0]);
+        setFechaInicio(showAllReservations ? defaultFechaInicio() : '');
         setFechaFin('');
         setEstadoFiltro("TODOS");
-        setBusquedaInput("");
+        setBusqueda("");
         setSearchHora("");
         setSearchPersonasMin("");
         setSearchPersonasMax("");
@@ -459,14 +427,6 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         setSortField(null);
         setSortDirection('asc');
         setCurrentPage(1);
-        setAppliedFilters({
-            fecha: defaultFechaValue,
-            fechaInicio: defaultFechaInicioValue,
-            fechaFin: '',
-            estadoFiltro: "TODOS",
-            searchAllHistory: false,
-            busqueda: ''
-        });
     };
 
     const handleSearchAllHistoryChange = (checked) => {
@@ -504,63 +464,42 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         setViewMode('list'); // Switch to list view to show details
     };
 
-    const handleAplicarFiltros = (valor = busquedaInput) => {
-        const rawValue = valor ?? '';
-        setBusquedaInput(rawValue);
-        const normalizado = rawValue.trim();
-        setCurrentPage(1);
-        setShowAutocomplete(false);
-        setSelectedSuggestionIndex(-1);
-
-        setAppliedFilters({
-            fecha,
-            fechaInicio,
-            fechaFin,
-            estadoFiltro,
-            searchAllHistory,
-            busqueda: normalizado
-        });
-    };
-
     // Autocomplete handlers
     const handleSuggestionClick = (suggestion) => {
-        handleAplicarFiltros(suggestion.nombre);
+        setBusqueda(suggestion.nombre);
+        setShowAutocomplete(false);
+        setSelectedSuggestionIndex(-1);
     };
 
     const handleSearchKeyDown = (e) => {
-        if (showAutocomplete && autocompleteSuggestions.length > 0) {
-            switch (e.key) {
-                case 'ArrowDown':
-                    e.preventDefault();
-                    setSelectedSuggestionIndex(prev =>
-                        prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
-                    );
-                    return;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : -1);
-                    return;
-                case 'Enter':
-                    e.preventDefault();
-                    if (selectedSuggestionIndex >= 0) {
-                        handleAplicarFiltros(autocompleteSuggestions[selectedSuggestionIndex].nombre);
-                    } else {
-                        handleAplicarFiltros();
-                    }
-                    return;
-                case 'Escape':
-                    e.preventDefault();
-                    setShowAutocomplete(false);
-                    setSelectedSuggestionIndex(-1);
-                    return;
-                default:
-                    break;
-            }
+        if (!showAutocomplete || autocompleteSuggestions.length === 0) {
+            return;
         }
 
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleAplicarFiltros();
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev =>
+                    prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
+                );
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : -1);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (selectedSuggestionIndex >= 0) {
+                    handleSuggestionClick(autocompleteSuggestions[selectedSuggestionIndex]);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setShowAutocomplete(false);
+                setSelectedSuggestionIndex(-1);
+                break;
+            default:
+                break;
         }
     };
 
@@ -846,10 +785,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const rangoLegible = fechaInicio || fechaFin
         ? `${fechaInicio || 'inicio'} → ${fechaFin || 'sin fin'}`
         : 'Sin rango';
-    const appliedRangoLegible = appliedFechaInicio || appliedFechaFin
-        ? `${appliedFechaInicio || 'inicio'} → ${appliedFechaFin || 'hoy'}`
-        : 'Sin rango';
-    const isDateFilterDisabled = Boolean(fechaInicio || fechaFin || historialActivo || historialPendiente);
+    const isDateFilterDisabled = Boolean(fechaInicio || fechaFin || historialActivo);
     const handleLimpiarRango = () => {
         setFechaInicio(defaultFechaInicio());
         setFechaFin('');
@@ -878,14 +814,14 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const searchScope = useMemo(() => {
         if (!isSearchingByName) return null;
         if (historialActivo) return 'en todo el historial';
-        if (appliedFechaInicio || appliedFechaFin) {
-            return `entre ${appliedFechaInicio || 'inicio'} y ${appliedFechaFin || 'hoy'}`;
+        if (fechaInicio || fechaFin) {
+            return `entre ${fechaInicio || 'inicio'} y ${fechaFin || 'hoy'}`;
         }
-        if (appliedFecha) {
-            return `el ${formatearFechaCorta(appliedFecha)}`;
+        if (fecha) {
+            return `el ${formatearFechaCorta(fecha)}`;
         }
         return 'en los últimos 7 días';
-    }, [isSearchingByName, historialActivo, appliedFechaInicio, appliedFechaFin, appliedFecha]);
+    }, [isSearchingByName, historialActivo, fechaInicio, fechaFin, fecha]);
 
     const searchSummaryDescription = useMemo(() => {
         if (!isSearchingByName || !searchScope) return null;
@@ -1048,11 +984,6 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                             <i className="bi bi-database me-1"></i>
                                             Historial completo activo (se ignoran los filtros de fecha)
                                         </span>
-                                    ) : historialPendiente ? (
-                                        <span className="text-warning">
-                                            <i className="bi bi-database me-1"></i>
-                                            Historial completo pendiente de aplicar
-                                        </span>
                                     ) : (fechaInicio || fechaFin) ? (
                                         <span className="text-warning">
                                             <i className="bi bi-info-circle me-1"></i>
@@ -1127,39 +1058,28 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                             >
                                 Buscar cliente
                             </label>
-                                    <div style={{ position: 'relative' }}>
-                                        <div className="input-group input-group-sm">
-                                            <input
-                                                ref={searchInputRef}
-                                                type="text"
-                                                id="filtro-busqueda"
-                                                className="form-control"
-                                                placeholder="Buscar por nombre, email o usuario..."
-                                                value={busquedaInput}
-                                                onChange={(e) => {
-                                                    setBusquedaInput(e.target.value);
-                                                }}
-                                                onKeyDown={handleSearchKeyDown}
-                                                onFocus={() => {
-                                                    if (busquedaInput && busquedaInput.trim().length >= 2 && autocompleteSuggestions.length > 0) {
-                                                        setShowAutocomplete(true);
-                                                    }
-                                                }}
-                                                autoComplete="off"
-                                            />
-                                            <button
-                                                type="button"
-                                                className="btn btn-primary"
-                                                onClick={() => handleAplicarFiltros()}
-                                                disabled={isSearchButtonDisabled}
-                                            >
-                                                <i className="bi bi-search me-1"></i>
-                                                Buscar
-                                            </button>
-                                        </div>
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    id="filtro-busqueda"
+                                    className="form-control form-control-sm"
+                                    placeholder="Buscar por nombre, email o usuario..."
+                                    value={busqueda}
+                                    onChange={(e) => {
+                                        setBusqueda(e.target.value);
+                                    }}
+                                    onKeyDown={handleSearchKeyDown}
+                                    onFocus={() => {
+                                        if (busqueda && busqueda.trim().length >= 2 && autocompleteSuggestions.length > 0) {
+                                            setShowAutocomplete(true);
+                                        }
+                                    }}
+                                    autoComplete="off"
+                                />
 
-                    {/* Autocomplete dropdown */}
-                                        {showAutocomplete && autocompleteSuggestions.length > 0 && (
+                                {/* Autocomplete dropdown */}
+                                {showAutocomplete && autocompleteSuggestions.length > 0 && (
                                             <div
                                                 ref={autocompleteRef}
                                                 style={{
@@ -1210,12 +1130,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                                 ))}
                                             </div>
                                         )}
-                                    </div>
-                                    {(hasPendingSearchChanges || hasPendingFilterChanges) && (
-                                        <small className="text-warning d-block mt-1">
-                                            Cambios sin aplicar: presiona <strong>Buscar</strong> para actualizar resultados.
-                                        </small>
-                                    )}
+                            </div>
                             {/* FIX: Make search scope checkbox visible */}
                             {!showAllReservations && (
                                 <div className="form-check mt-1">
@@ -1259,7 +1174,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                         <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
                             <span className="badge rounded-pill badge-soft-primary">
                                 <i className="bi bi-calendar-range me-1"></i>
-                                {appliedRangoLegible}
+                                {rangoLegible}
                             </span>
                             {(fechaInicio || fechaFin) && (
                                 <button className="btn btn-link btn-sm p-0" onClick={handleLimpiarRango}>
@@ -1270,11 +1185,11 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                     )}
 
                     {/* Show range badge in normal mode when date range is active */}
-                    {!showAllReservations && (appliedFechaInicio || appliedFechaFin) && (
+                    {!showAllReservations && (fechaInicio || fechaFin) && (
                         <div className="d-flex flex-wrap align-items-center gap-2 mb-3 pb-2 border-bottom">
                             <span className="badge rounded-pill badge-soft-info">
                                 <i className="bi bi-funnel me-1"></i>
-                                Rango activo: {appliedFechaInicio || 'inicio'} → {appliedFechaFin || 'hoy'}
+                                Rango activo: {fechaInicio || 'inicio'} → {fechaFin || 'hoy'}
                             </span>
                             <button
                                 className="btn btn-link btn-sm p-0"
@@ -1286,7 +1201,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                 <i className="bi bi-x-circle me-1"></i>
                                 Limpiar rango
                             </button>
-                        </div>
+        </div>
                     )}
 
                     {/* Manual refresh button */}
@@ -1469,12 +1384,6 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
 
                     {noResultsMessage && (
                         <div className="alert alert-info py-2 small">{noResultsMessage}</div>
-                    )}
-
-                    {(hasPendingFilterChanges || hasPendingSearchChanges) && (
-                        <div className="alert alert-warning py-2 small">
-                            Mostrando resultados con filtros aplicados anteriormente. Presiona <strong>Buscar</strong> para actualizar la tabla.
-                        </div>
                     )}
 
                     {/* Calendar View */}
@@ -1765,12 +1674,6 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                     >
                                         Limitar por fechas
                                     </button>
-                                </div>
-                            )}
-                            {historialPendiente && (
-                                <div className="d-flex align-items-center gap-2 mt-1 small text-warning">
-                                    <i className="bi bi-database"></i>
-                                    El historial completo se aplicará al buscar
                                 </div>
                             )}
                         </div>
