@@ -37,7 +37,11 @@ media/
 *.swp
 *.swo
 *~
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
 # Node.js (Frontend)
 node_modules/
@@ -63,3 +67,12 @@ htmlcov/
 # Logs
 logs/
 *.log
+
+# Git helpers
+.git-rewrite/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~.nib
