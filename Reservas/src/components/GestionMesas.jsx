@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getMesas, updateEstadoMesa, getReservas } from '../services/reservasApi';
 import { handleError } from '../utils/errorHandler';
+import Modal from './ui/Modal';
 
 export default function GestionMesas() {
   const [mesas, setMesas] = useState([]);
@@ -15,6 +16,9 @@ export default function GestionMesas() {
   const [horaFiltro, setHoraFiltro] = useState('');
   const [reservasPorFecha, setReservasPorFecha] = useState([]);
   const [mostrarDisponibilidad, setMostrarDisponibilidad] = useState(true);
+
+  // Estado para modal de detalle de reserva
+  const [detalleModal, setDetalleModal] = useState({ isOpen: false, reserva: null });
 
   useEffect(() => {
     cargarMesas();
@@ -142,6 +146,27 @@ export default function GestionMesas() {
   // Función para verificar si una mesa tiene reservas en la fecha
   const tieneReservas = (numeroMesa) => {
     return getReservasMesa(numeroMesa).length > 0;
+  };
+
+  // Función para formatear hora a formato militar 24 horas (HH:MM)
+  const formatearHora = (hora) => {
+    if (!hora) return '';
+    return hora.substring(0, 5);
+  };
+
+  // Función para formatear fecha corta
+  const formatearFechaCorta = (fechaStr) => {
+    if (!fechaStr) return '';
+    return new Date(`${fechaStr}T00:00:00`).toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  // Handler para abrir modal de detalle de reserva
+  const handleVerDetalleReserva = (reserva) => {
+    setDetalleModal({ isOpen: true, reserva });
   };
 
   const mesasFiltradas = filtroEstado === 'TODOS'
@@ -414,7 +439,18 @@ export default function GestionMesas() {
                             </div>
                             <div className="list-group list-group-flush small">
                               {reservas.map((reserva, idx) => (
-                                <div key={idx} className="list-group-item px-0 py-1 border-0">
+                                <div
+                                  key={idx}
+                                  className="list-group-item px-0 py-1 border-0"
+                                  onClick={() => handleVerDetalleReserva(reserva)}
+                                  style={{
+                                    cursor: 'pointer',
+                                    transition: 'background-color 0.2s',
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                  title="Click para ver detalle completo"
+                                >
                                   <i className="bi bi-clock text-muted me-1"></i>
                                   <strong>{reserva.hora}</strong> - {reserva.personas} pers.
                                   <span className={`badge bg-${
@@ -424,6 +460,7 @@ export default function GestionMesas() {
                                   } ms-1 small`}>
                                     {reserva.estado}
                                   </span>
+                                  <i className="bi bi-eye ms-2 text-primary small"></i>
                                 </div>
                               ))}
                             </div>
@@ -520,6 +557,233 @@ export default function GestionMesas() {
           </div>
         </div>
       </div>
+
+      {/* Modal de detalle de reserva */}
+      {detalleModal.reserva && (
+        <Modal
+          isOpen={detalleModal.isOpen}
+          onClose={() => setDetalleModal({ isOpen: false, reserva: null })}
+          title={
+            <div className="d-flex justify-content-between align-items-center flex-wrap gap-3 w-100">
+              <div>
+                <span className="fw-semibold d-block">Reserva #{detalleModal.reserva.id}</span>
+                <small className="text-muted">Detalle completo del cliente y su mesa</small>
+              </div>
+              <span className={`estado-chip estado-chip--${(detalleModal.reserva.estado || '').toLowerCase()}`}>
+                <i className={`bi ${{
+                  ACTIVA: 'bi-lightning-charge-fill',
+                  PENDIENTE: 'bi-clock-history',
+                  COMPLETADA: 'bi-check2-circle',
+                  CANCELADA: 'bi-x-octagon-fill'
+                }[detalleModal.reserva.estado] || 'bi-info-circle'} me-2`}></i>
+                {detalleModal.reserva.estado}
+              </span>
+            </div>
+          }
+          size="xl"
+        >
+          <div className="reserva-detalle-content">
+            {/* Header visual con resumen rápido */}
+            <div className="reserva-header-summary mb-4 p-4 bg-light rounded-3">
+              <div className="row g-3 text-center">
+                <div className="col-md-3">
+                  <div className="summary-item">
+                    <i className="bi bi-calendar3 fs-2 text-primary mb-2 d-block"></i>
+                    <div className="small text-muted">Fecha</div>
+                    <div className="fw-bold">
+                      {new Date(detalleModal.reserva.fecha + 'T00:00:00').toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'short'
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="summary-item">
+                    <i className="bi bi-clock fs-2 text-primary mb-2 d-block"></i>
+                    <div className="small text-muted">Horario</div>
+                    <div className="fw-bold">{formatearHora(detalleModal.reserva.hora)}</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="summary-item">
+                    <i className="bi bi-table fs-2 text-primary mb-2 d-block"></i>
+                    <div className="small text-muted">Mesa</div>
+                    <div className="fw-bold">{detalleModal.reserva.mesa}</div>
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <div className="summary-item">
+                    <i className="bi bi-people fs-2 text-primary mb-2 d-block"></i>
+                    <div className="small text-muted">Personas</div>
+                    <div className="fw-bold">{detalleModal.reserva.personas}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="row g-4">
+              {/* Información del Cliente - Card */}
+              <div className="col-lg-6">
+                <div className="card h-100 border-0 shadow-sm">
+                  <div className="card-header bg-primary bg-gradient text-white">
+                    <h6 className="mb-0">
+                      <i className="bi bi-person-circle me-2"></i>
+                      Información del Cliente
+                    </h6>
+                  </div>
+                  <div className="card-body">
+                    <div className="info-item mb-3">
+                      <div className="d-flex align-items-center mb-2">
+                        <i className="bi bi-person-fill text-primary me-2 fs-5"></i>
+                        <span className="small text-muted">Nombre completo</span>
+                      </div>
+                      <div className="ps-4 fw-semibold">{detalleModal.reserva.cliente}</div>
+                    </div>
+
+                    {detalleModal.reserva.cliente_telefono && (
+                      <div className="info-item mb-3">
+                        <div className="d-flex align-items-center mb-2">
+                          <i className="bi bi-telephone-fill text-success me-2 fs-5"></i>
+                          <span className="small text-muted">Teléfono</span>
+                        </div>
+                        <div className="ps-4">
+                          <a
+                            href={`tel:${detalleModal.reserva.cliente_telefono}`}
+                            className="text-decoration-none fw-semibold text-success d-inline-flex align-items-center text-break"
+                          >
+                            {detalleModal.reserva.cliente_telefono}
+                            <i className="bi bi-box-arrow-up-right ms-2 small"></i>
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {detalleModal.reserva.cliente_email && (
+                      <div className="info-item mb-3">
+                        <div className="d-flex align-items-center mb-2">
+                          <i className="bi bi-envelope-fill text-info me-2 fs-5"></i>
+                          <span className="small text-muted">Email</span>
+                        </div>
+                        <div className="ps-4">
+                          <a
+                            href={`mailto:${detalleModal.reserva.cliente_email}`}
+                            className="text-decoration-none fw-semibold text-info d-inline-flex align-items-center text-break"
+                          >
+                            {detalleModal.reserva.cliente_email}
+                            <i className="bi bi-box-arrow-up-right ms-2 small"></i>
+                          </a>
+                        </div>
+                      </div>
+                    )}
+
+                    {detalleModal.reserva.cliente_rut && (
+                      <div className="info-item">
+                        <div className="d-flex align-items-center mb-2">
+                          <i className="bi bi-card-text text-secondary me-2 fs-5"></i>
+                          <span className="small text-muted">RUT</span>
+                        </div>
+                        <div className="ps-4 fw-semibold font-monospace">{detalleModal.reserva.cliente_rut}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Detalles de la Reserva - Card */}
+              <div className="col-lg-6">
+                <div className="card h-100 border-0 shadow-sm">
+                  <div className="card-header bg-success bg-gradient text-white">
+                    <h6 className="mb-0">
+                      <i className="bi bi-calendar-check me-2"></i>
+                      Detalles de la Reserva
+                    </h6>
+                  </div>
+                  <div className="card-body">
+                    <div className="info-item mb-3">
+                      <div className="d-flex align-items-center mb-2">
+                        <i className="bi bi-calendar3 text-primary me-2 fs-5"></i>
+                        <span className="small text-muted">Fecha completa</span>
+                      </div>
+                      <div className="ps-4 fw-semibold">
+                        {new Date(detalleModal.reserva.fecha + 'T00:00:00').toLocaleDateString('es-ES', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="info-item mb-3">
+                      <div className="d-flex align-items-center mb-2">
+                        <i className="bi bi-clock-fill text-warning me-2 fs-5"></i>
+                        <span className="small text-muted">Horario de reserva</span>
+                      </div>
+                      <div className="ps-4">
+                        <span className="badge bg-warning text-dark fs-6 px-3 py-2">
+                          {formatearHora(detalleModal.reserva.hora)} hrs
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="info-item mb-3">
+                      <div className="d-flex align-items-center mb-2">
+                        <i className="bi bi-table text-info me-2 fs-5"></i>
+                        <span className="small text-muted">Mesa asignada</span>
+                      </div>
+                      <div className="ps-4">
+                        <span className="badge bg-info fs-6 px-3 py-2">{detalleModal.reserva.mesa}</span>
+                      </div>
+                    </div>
+
+                    <div className="info-item">
+                      <div className="d-flex align-items-center mb-2">
+                        <i className="bi bi-people-fill text-success me-2 fs-5"></i>
+                        <span className="small text-muted">Número de comensales</span>
+                      </div>
+                      <div className="ps-4 fw-semibold">
+                        {detalleModal.reserva.personas} {detalleModal.reserva.personas === 1 ? 'persona' : 'personas'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notas Especiales - Full Width Card */}
+            {detalleModal.reserva.notas && (
+              <div className="mt-4">
+                <div className="card border-0 shadow-sm">
+                  <div className="card-header bg-warning bg-opacity-10 border-warning">
+                    <h6 className="mb-0 text-warning-emphasis">
+                      <i className="bi bi-chat-left-text-fill me-2"></i>
+                      Notas y Requerimientos Especiales del Cliente
+                    </h6>
+                  </div>
+                  <div className="card-body bg-warning bg-opacity-10">
+                    <div className="d-flex align-items-start">
+                      <i className="bi bi-quote text-warning-emphasis me-3 fs-3"></i>
+                      <p className="mb-0 fst-italic">{detalleModal.reserva.notas}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Botón Cerrar */}
+            <div className="d-flex justify-content-end pt-4 mt-4 border-top">
+              <button
+                className="btn btn-lg btn-outline-secondary"
+                onClick={() => setDetalleModal({ isOpen: false, reserva: null })}
+              >
+                <i className="bi bi-x-circle me-2"></i>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

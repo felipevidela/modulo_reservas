@@ -101,6 +101,9 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const autocompleteRef = useRef(null);
     const searchInputRef = useRef(null);
 
+    // Bulk selection state
+    const [selectedReservations, setSelectedReservations] = useState([]);
+
     // Edit modal state
     const [editModal, setEditModal] = useState({ isOpen: false, reserva: null, loading: false });
     const [formData, setFormData] = useState({
@@ -694,22 +697,8 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     function renderAcciones(reserva) {
         const isLoading = loadingRows[reserva.id];
 
-        // Admin
-        if (rolActual === "admin") {
-            return (
-                <button
-                    className="btn btn-outline-secondary btn-sm"
-                    onClick={() => setDetalleModal({ isOpen: true, reserva })}
-                    disabled={isLoading}
-                >
-                    <i className="bi bi-eye me-1"></i>
-                    Ver detalle
-                </button>
-            );
-        }
-
-        // Cajero - Dropdown menu para cambiar estados
-        if (rolActual === "cajero") {
+        // Admin y Cajero - Dropdown menu para cambiar estados
+        if (rolActual === "admin" || rolActual === "cajero") {
             const estados = [
                 { label: "ACTIVA", value: "activa", icon: "bi-check-circle", color: "success" },
                 { label: "PENDIENTE", value: "pendiente", icon: "bi-clock", color: "warning" },
@@ -768,6 +757,163 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         }
 
         return null;
+    }
+
+    // Bulk selection handlers
+    const handleSelectReservation = (reservaId) => {
+        setSelectedReservations(prev => {
+            if (prev.includes(reservaId)) {
+                return prev.filter(id => id !== reservaId);
+            } else {
+                return [...prev, reservaId];
+            }
+        });
+    };
+
+    const handleSelectAll = (checked) => {
+        if (checked) {
+            const allIds = reservasPaginadas.map(r => r.id);
+            setSelectedReservations(allIds);
+        } else {
+            setSelectedReservations([]);
+        }
+    };
+
+    const handleClearSelection = () => {
+        setSelectedReservations([]);
+    };
+
+    // Bulk state change handler
+    async function handleBulkStateChange(nuevoEstado) {
+        if (selectedReservations.length === 0) return;
+
+        const ejecutarCambioMasivo = async () => {
+            const errors = [];
+            let successCount = 0;
+
+            for (const id of selectedReservations) {
+                try {
+                    setLoadingRows(prev => ({ ...prev, [id]: true }));
+                    await updateEstadoReserva({ id, nuevoEstado });
+
+                    setReservas((prev) =>
+                        prev.map((r) =>
+                            r.id === id ? { ...r, estado: nuevoEstado } : r
+                        )
+                    );
+                    successCount++;
+                } catch (err) {
+                    console.error(`Error updating reservation ${id}:`, err);
+                    errors.push(id);
+                } finally {
+                    setLoadingRows(prev => {
+                        const newState = { ...prev };
+                        delete newState[id];
+                        return newState;
+                    });
+                }
+            }
+
+            // Clear selection after successful updates
+            setSelectedReservations([]);
+
+            // Show results
+            if (successCount > 0) {
+                toast.success(`${successCount} reserva(s) actualizada(s) a ${nuevoEstado.toUpperCase()}`);
+            }
+            if (errors.length > 0) {
+                toast.error(`${errors.length} reserva(s) fallaron al actualizarse`);
+            }
+        };
+
+        // Destructive actions require confirmation
+        const estadosDestructivos = ['cancelada', 'completada'];
+        if (estadosDestructivos.includes(nuevoEstado.toLowerCase())) {
+            const mensajesConfirmacion = {
+                cancelada: `¿Está seguro de que desea cancelar ${selectedReservations.length} reserva(s)? Esta acción no se puede deshacer.`,
+                completada: `¿Confirma que desea marcar ${selectedReservations.length} reserva(s) como completadas?`
+            };
+
+            setConfirmModal({
+                isOpen: true,
+                title: `Confirmar cambio masivo a ${nuevoEstado.toUpperCase()}`,
+                message: mensajesConfirmacion[nuevoEstado.toLowerCase()] || `¿Está seguro de cambiar ${selectedReservations.length} reserva(s)?`,
+                onConfirm: async () => {
+                    setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: null });
+                    await ejecutarCambioMasivo();
+                }
+            });
+        } else {
+            await ejecutarCambioMasivo();
+        }
+    }
+
+    // Clear selection when filters change
+    useEffect(() => {
+        setSelectedReservations([]);
+    }, [fecha, fechaInicio, fechaFin, estadoFiltro, busqueda, currentPage]);
+
+    function renderEstadoBadge(reserva) {
+        const isLoading = loadingRows[reserva.id];
+
+        // Para Admin y Cajero: Badge clickeable con dropdown
+        if (rolActual === "admin" || rolActual === "cajero") {
+            const estados = [
+                { label: "ACTIVA", value: "activa", icon: "bi-check-circle", color: "success" },
+                { label: "PENDIENTE", value: "pendiente", icon: "bi-clock", color: "warning" },
+                { label: "COMPLETADA", value: "completada", icon: "bi-check-all", color: "info" },
+                { label: "CANCELADA", value: "cancelada", icon: "bi-x-circle", color: "danger" }
+            ];
+
+            const estadosDisponibles = estados.filter((e) => e.label !== reserva.estado);
+
+            if (isLoading) {
+                return (
+                    <span className={`estado-badge estado-${reserva.estado}`}>
+                        <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        {reserva.estado}
+                    </span>
+                );
+            }
+
+            return (
+                <div className="dropdown">
+                    <span
+                        className={`estado-badge estado-${reserva.estado}`}
+                        style={{ cursor: 'pointer' }}
+                        role="button"
+                        id={`estado-dropdown-${reserva.id}`}
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        title="Click para cambiar estado"
+                    >
+                        {reserva.estado}
+                        <i className="bi bi-chevron-down ms-1" style={{ fontSize: '0.75rem' }}></i>
+                    </span>
+                    <ul className="dropdown-menu dropdown-menu-end shadow-sm" aria-labelledby={`estado-dropdown-${reserva.id}`}>
+                        <li className="dropdown-header">Cambiar a:</li>
+                        {estadosDisponibles.map((estado) => (
+                            <li key={estado.value}>
+                                <button
+                                    className="dropdown-item d-flex align-items-center"
+                                    onClick={() => handleCambiarEstado(reserva.id, estado.value)}
+                                >
+                                    <i className={`bi ${estado.icon} me-2 text-${estado.color}`}></i>
+                                    <span>{estado.label}</span>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            );
+        }
+
+        // Para otros roles: Badge simple sin interacción
+        return (
+            <span className={`estado-badge estado-${reserva.estado}`}>
+                {reserva.estado}
+            </span>
+        );
     }
 
     const panelTitle = showAllReservations ? 'Todas las reservas' : 'Panel de reservas';
@@ -1353,6 +1499,69 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                 </div>
             </div>
 
+            {/* Bulk Actions Toolbar - Fixed at bottom when items are selected */}
+            {selectedReservations.length > 0 && (rolActual === "admin" || rolActual === "cajero") && (
+                <div
+                    className="position-fixed bottom-0 start-50 translate-middle-x bg-primary text-white shadow-lg rounded-top-3 px-4 py-3 d-flex align-items-center gap-3"
+                    style={{ zIndex: 1050, minWidth: '400px', maxWidth: '90vw' }}
+                >
+                    <div className="d-flex align-items-center gap-2 flex-grow-1">
+                        <i className="bi bi-check-circle-fill fs-5"></i>
+                        <span className="fw-semibold">
+                            {selectedReservations.length} reserva(s) seleccionada(s)
+                        </span>
+                    </div>
+
+                    <div className="btn-group" role="group">
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-light"
+                            onClick={() => handleBulkStateChange('activa')}
+                            title="Cambiar a ACTIVA"
+                        >
+                            <i className="bi bi-check-circle me-1"></i>
+                            Activa
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-light"
+                            onClick={() => handleBulkStateChange('pendiente')}
+                            title="Cambiar a PENDIENTE"
+                        >
+                            <i className="bi bi-clock me-1"></i>
+                            Pendiente
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-light"
+                            onClick={() => handleBulkStateChange('completada')}
+                            title="Cambiar a COMPLETADA"
+                        >
+                            <i className="bi bi-check-all me-1"></i>
+                            Completada
+                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm btn-danger"
+                            onClick={() => handleBulkStateChange('cancelada')}
+                            title="Cambiar a CANCELADA"
+                        >
+                            <i className="bi bi-x-circle me-1"></i>
+                            Cancelar
+                        </button>
+                    </div>
+
+                    <button
+                        type="button"
+                        className="btn btn-sm btn-outline-light"
+                        onClick={handleClearSelection}
+                        title="Limpiar selección"
+                    >
+                        <i className="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            )}
+
             {/* Tabla de reservas */}
             <div className="card border-0 shadow-sm">
                 <div className="card-body">
@@ -1401,17 +1610,26 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                             {reservasPaginadas.map((reserva, index) => {
                                 const numeroGlobal = (currentPage - 1) * itemsPerPage + index + 1;
                                 const isLoading = loadingRows[reserva.id];
+                                const isSelected = selectedReservations.includes(reserva.id);
                                 return (
-                                    <div key={reserva.id} className="card mb-2 shadow-sm">
+                                    <div key={reserva.id} className={`card mb-2 shadow-sm ${isSelected ? 'border-primary border-2' : ''}`}>
                                         <div className="card-body p-3">
                                             <div className="d-flex justify-content-between align-items-start mb-2">
-                                                <div>
-                                                    <h6 className="mb-0">{reserva.cliente}</h6>
-                                                    <small className="text-muted">#{numeroGlobal}</small>
+                                                <div className="d-flex align-items-start gap-2">
+                                                    {(rolActual === "admin" || rolActual === "cajero") && (
+                                                        <input
+                                                            type="checkbox"
+                                                            className="form-check-input mt-1"
+                                                            checked={isSelected}
+                                                            onChange={() => handleSelectReservation(reserva.id)}
+                                                        />
+                                                    )}
+                                                    <div>
+                                                        <h6 className="mb-0">{reserva.cliente}</h6>
+                                                        <small className="text-muted">#{numeroGlobal}</small>
+                                                    </div>
                                                 </div>
-                                                <span className={`estado-badge estado-${reserva.estado}`}>
-                                                    {reserva.estado}
-                                                </span>
+                                                {renderEstadoBadge(reserva)}
                                             </div>
                                             <div className="row g-2 mb-2">
                                                 <div className="col-6">
@@ -1452,6 +1670,17 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                             <table className="table table-hover align-middle">
                                 <thead>
                                     <tr>
+                                        {(rolActual === "admin" || rolActual === "cajero") && (
+                                            <th style={{ width: '40px' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="form-check-input"
+                                                    checked={reservasPaginadas.length > 0 && selectedReservations.length === reservasPaginadas.length}
+                                                    onChange={(e) => handleSelectAll(e.target.checked)}
+                                                    title="Seleccionar todas las reservas en esta página"
+                                                />
+                                            </th>
+                                        )}
                                         <th>#</th>
                                         <th
                                             role="button"
@@ -1519,8 +1748,19 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                 <tbody>
                                     {reservasPaginadas.map((reserva, index) => {
                                     const numeroGlobal = (currentPage - 1) * itemsPerPage + index + 1;
+                                    const isSelected = selectedReservations.includes(reserva.id);
                                     return (
-                                        <tr key={reserva.id}>
+                                        <tr key={reserva.id} className={isSelected ? 'table-active' : ''}>
+                                            {(rolActual === "admin" || rolActual === "cajero") && (
+                                                <td>
+                                                    <input
+                                                        type="checkbox"
+                                                        className="form-check-input"
+                                                        checked={isSelected}
+                                                        onChange={() => handleSelectReservation(reserva.id)}
+                                                    />
+                                                </td>
+                                            )}
                                             <td>{numeroGlobal}</td>
                                             <td>{reserva.cliente}</td>
                                             <td>{reserva.mesa}</td>
@@ -1528,11 +1768,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                             <td>{formatearHora(reserva.hora)} hrs</td>
                                             <td>{reserva.personas}</td>
                                             <td>
-                                                <span
-                                                    className={`estado-badge estado-${reserva.estado}`}
-                                                >
-                                                    {reserva.estado}
-                                                </span>
+                                                {renderEstadoBadge(reserva)}
                                             </td>
                                             <td className="text-end">
                                                 {renderAcciones(reserva)}
@@ -1543,7 +1779,7 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
 
                                     {reservasFiltradas.length === 0 && !loading && (
                                         <tr>
-                                            <td colSpan="8" className="text-center text-muted py-4">
+                                            <td colSpan={(rolActual === "admin" || rolActual === "cajero") ? "9" : "8"} className="text-center text-muted py-4">
                                                 No hay reservas para los filtros seleccionados.
                                             </td>
                                         </tr>
@@ -1839,8 +2075,8 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                             </button>
 
                             <div className="d-flex gap-2">
-                                {/* Cambiar Estado (solo para Cajero) */}
-                                {rolActual === "cajero" && (
+                                {/* Cambiar Estado (para Admin y Cajero) */}
+                                {(rolActual === "cajero" || rolActual === "admin") && (
                                     <div className="dropdown">
                                         <button
                                             className="btn btn-lg btn-outline-primary dropdown-toggle"

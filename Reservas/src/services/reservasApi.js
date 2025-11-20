@@ -319,6 +319,7 @@ export async function getReservas(params = {}, options = {}) {
       hora: formatearHora24(reserva.hora_inicio),
       personas: reserva.num_personas,
       estado: reserva.estado.toUpperCase(),
+      notas: reserva.notas || '',
     };
   });
 }
