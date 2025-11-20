@@ -114,20 +114,28 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
             setLoading(true);
             setError("");
             const filtros = {};
+
+            // FIX: Smart search logic - don't apply date filter when searching by name
+            const isSearchingByName = busqueda && busqueda.trim() !== '';
+
             if (showAllReservations) {
                 if (fechaInicio) filtros.fecha_inicio = fechaInicio;
                 if (fechaFin) filtros.fecha_fin = fechaFin;
-            } else if (fecha) {
+            } else if (fecha && !isSearchingByName) {
+                // Only apply fecha filter if NOT searching by name
                 filtros.fecha = fecha;
             }
+
             // Agregar búsqueda por cliente (nombre, email, username)
-            if (busqueda && busqueda.trim() !== '') {
+            if (isSearchingByName) {
                 filtros.search = busqueda.trim();
+                // Apply searchAllHistory flag when searching
+                if (searchAllHistory && !showAllReservations) {
+                    filtros.all = 'true';
+                }
+                // Otherwise backend will auto-limit to 7 days + future reservations
             }
-            // Búsqueda global en todo el historial (sin límite de fecha)
-            if (searchAllHistory && !showAllReservations) {
-                filtros.all = 'true';
-            }
+
             const data = await getReservas(filtros);
             setReservas(data);
         } catch (err) {
@@ -856,8 +864,30 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                 className="form-control form-control-sm"
                                 placeholder="Buscar por nombre, email o usuario..."
                                 value={busqueda}
-                                onChange={(e) => setBusqueda(e.target.value)}
+                                onChange={(e) => {
+                                    setBusqueda(e.target.value);
+                                    // FIX: Auto-enable global search when user starts typing
+                                    if (e.target.value && !searchAllHistory) {
+                                        setSearchAllHistory(true);
+                                    }
+                                }}
                             />
+                            {/* FIX: Make search scope checkbox visible */}
+                            {!showAllReservations && (
+                                <div className="form-check mt-1">
+                                    <input
+                                        className="form-check-input"
+                                        type="checkbox"
+                                        id="search-all-history-inline"
+                                        checked={searchAllHistory}
+                                        onChange={(e) => setSearchAllHistory(e.target.checked)}
+                                    />
+                                    <label className="form-check-label small text-muted" htmlFor="search-all-history-inline">
+                                        <i className="bi bi-database me-1"></i>
+                                        Buscar en todo el historial
+                                    </label>
+                                </div>
+                            )}
                         </div>
 
                         <div className="col-md-3">
