@@ -111,7 +111,7 @@ export function useFormValidation(initialValues = {}, validationRules = {}, _deb
    * Maneja el envío del formulario
    */
   const handleSubmit = useCallback(
-    async (onSubmit) => {
+    (onSubmit) => {
       return async (e) => {
         if (e) {
           e.preventDefault();
