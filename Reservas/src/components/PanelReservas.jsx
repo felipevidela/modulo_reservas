@@ -91,6 +91,13 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     // Calendar view state
     const [viewMode, setViewMode] = useState('list'); // 'list' or 'calendar'
 
+    // Autocomplete state
+    const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
+    const [showAutocomplete, setShowAutocomplete] = useState(false);
+    const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+    const autocompleteRef = useRef(null);
+    const searchInputRef = useRef(null);
+
     // Edit modal state
     const [editModal, setEditModal] = useState({ isOpen: false, reserva: null, loading: false });
     const [formData, setFormData] = useState({
@@ -147,6 +154,47 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
         }
     };
 
+    // Función para obtener sugerencias de autocompletado
+    const fetchAutocompleteSuggestions = async (searchTerm) => {
+        if (!searchTerm || searchTerm.trim().length < 2) {
+            setAutocompleteSuggestions([]);
+            setShowAutocomplete(false);
+            return;
+        }
+
+        try {
+            // Buscar reservas que coincidan con el término de búsqueda
+            const filtros = {
+                search: searchTerm.trim(),
+                all: 'true' // Buscar en todo el historial
+            };
+
+            const data = await getReservas(filtros);
+
+            // Extraer clientes únicos de las reservas
+            const clientesMap = new Map();
+            data.forEach(reserva => {
+                const key = reserva.cliente_email || reserva.cliente;
+                if (!clientesMap.has(key)) {
+                    clientesMap.set(key, {
+                        nombre: reserva.cliente,
+                        email: reserva.cliente_email,
+                        telefono: reserva.cliente_telefono
+                    });
+                }
+            });
+
+            const suggestions = Array.from(clientesMap.values());
+            setAutocompleteSuggestions(suggestions);
+            setShowAutocomplete(suggestions.length > 0);
+            setSelectedSuggestionIndex(-1);
+        } catch (err) {
+            console.error('Error fetching autocomplete suggestions:', err);
+            setAutocompleteSuggestions([]);
+            setShowAutocomplete(false);
+        }
+    };
+
     // Cargar reservas al cambiar filtros relevantes
     useEffect(() => {
         cargarReservas();
@@ -162,6 +210,39 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
 
         return () => clearTimeout(timer);
     }, [busqueda]);
+
+    // Debounced autocomplete: Fetch suggestions as user types
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (busqueda && busqueda.trim().length >= 2) {
+                fetchAutocompleteSuggestions(busqueda);
+            } else {
+                setShowAutocomplete(false);
+                setAutocompleteSuggestions([]);
+            }
+        }, 200); // Faster response for autocomplete
+
+        return () => clearTimeout(timer);
+    }, [busqueda]);
+
+    // Click outside to close autocomplete
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (
+                autocompleteRef.current &&
+                !autocompleteRef.current.contains(event.target) &&
+                searchInputRef.current &&
+                !searchInputRef.current.contains(event.target)
+            ) {
+                setShowAutocomplete(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     // Pre-cargar caché de mesas al montar componente (optimización)
     useEffect(() => {
@@ -358,6 +439,45 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
     const handleDiaClick = (fechaStr) => {
         setFecha(fechaStr);
         setViewMode('list'); // Switch to list view to show details
+    };
+
+    // Autocomplete handlers
+    const handleSuggestionClick = (suggestion) => {
+        setBusqueda(suggestion.nombre);
+        setShowAutocomplete(false);
+        setSelectedSuggestionIndex(-1);
+    };
+
+    const handleSearchKeyDown = (e) => {
+        if (!showAutocomplete || autocompleteSuggestions.length === 0) {
+            return;
+        }
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev =>
+                    prev < autocompleteSuggestions.length - 1 ? prev + 1 : prev
+                );
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : -1);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (selectedSuggestionIndex >= 0) {
+                    handleSuggestionClick(autocompleteSuggestions[selectedSuggestionIndex]);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setShowAutocomplete(false);
+                setSelectedSuggestionIndex(-1);
+                break;
+            default:
+                break;
+        }
     };
 
     // resumen por estado
@@ -868,20 +988,83 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                             >
                                 Buscar cliente
                             </label>
-                            <input
-                                type="text"
-                                id="filtro-busqueda"
-                                className="form-control form-control-sm"
-                                placeholder="Buscar por nombre, email o usuario..."
-                                value={busqueda}
-                                onChange={(e) => {
-                                    setBusqueda(e.target.value);
-                                    // FIX: Auto-enable global search when user starts typing
-                                    if (e.target.value && !searchAllHistory) {
-                                        setSearchAllHistory(true);
-                                    }
-                                }}
-                            />
+                            <div style={{ position: 'relative' }}>
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    id="filtro-busqueda"
+                                    className="form-control form-control-sm"
+                                    placeholder="Buscar por nombre, email o usuario..."
+                                    value={busqueda}
+                                    onChange={(e) => {
+                                        setBusqueda(e.target.value);
+                                        // FIX: Auto-enable global search when user starts typing
+                                        if (e.target.value && !searchAllHistory) {
+                                            setSearchAllHistory(true);
+                                        }
+                                    }}
+                                    onKeyDown={handleSearchKeyDown}
+                                    onFocus={() => {
+                                        if (busqueda && busqueda.trim().length >= 2 && autocompleteSuggestions.length > 0) {
+                                            setShowAutocomplete(true);
+                                        }
+                                    }}
+                                    autoComplete="off"
+                                />
+
+                                {/* Autocomplete dropdown */}
+                                {showAutocomplete && autocompleteSuggestions.length > 0 && (
+                                    <div
+                                        ref={autocompleteRef}
+                                        style={{
+                                            position: 'absolute',
+                                            top: '100%',
+                                            left: 0,
+                                            right: 0,
+                                            backgroundColor: 'white',
+                                            border: '1px solid #dee2e6',
+                                            borderRadius: '0.25rem',
+                                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                                            zIndex: 1000,
+                                            maxHeight: '400px',
+                                            overflowY: 'auto',
+                                            marginTop: '2px'
+                                        }}
+                                    >
+                                        {autocompleteSuggestions.map((suggestion, index) => (
+                                            <div
+                                                key={index}
+                                                onClick={() => handleSuggestionClick(suggestion)}
+                                                style={{
+                                                    padding: '10px 12px',
+                                                    cursor: 'pointer',
+                                                    backgroundColor: selectedSuggestionIndex === index ? '#e9ecef' : 'white',
+                                                    borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid #f1f3f5' : 'none',
+                                                    transition: 'background-color 0.15s ease'
+                                                }}
+                                                onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                                            >
+                                                <div style={{ fontWeight: 500, color: '#212529', marginBottom: '2px' }}>
+                                                    <i className="bi bi-person-circle me-2 text-primary"></i>
+                                                    {suggestion.nombre}
+                                                </div>
+                                                {suggestion.email && (
+                                                    <div style={{ fontSize: '0.85rem', color: '#6c757d' }}>
+                                                        <i className="bi bi-envelope me-2"></i>
+                                                        {suggestion.email}
+                                                    </div>
+                                                )}
+                                                {suggestion.telefono && (
+                                                    <div style={{ fontSize: '0.85rem', color: '#6c757d' }}>
+                                                        <i className="bi bi-telephone me-2"></i>
+                                                        {suggestion.telefono}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                             {/* FIX: Make search scope checkbox visible */}
                             {!showAllReservations && (
                                 <div className="form-check mt-1">
