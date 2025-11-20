@@ -158,9 +158,8 @@ class TestRegisterSerializer:
             'email': 'nuevo@test.com',
             'password': 'Password123!',
             'password_confirm': 'DiferentePassword123!',  # No coincide
-            'first_name': 'Juan',
-            'last_name': 'Pérez',
-            'nombre_completo': 'Juan Pérez',
+            'nombre': 'Juan',
+            'apellido': 'Pérez',
             'rut': '12345678-5',
             'telefono': '+56912345678'
         }
@@ -178,9 +177,8 @@ class TestRegisterSerializer:
             'email': 'nuevo@test.com',
             'password': '123',  # Muy simple
             'password_confirm': '123',
-            'first_name': 'Juan',
-            'last_name': 'Pérez',
-            'nombre_completo': 'Juan Pérez',
+            'nombre': 'Juan',
+            'apellido': 'Pérez',
             'rut': '12345678-5',
             'telefono': '+56912345678'
         }
@@ -202,9 +200,8 @@ class TestRegisterSerializer:
             'email': 'nuevo@test.com',
             'password': 'Password123!',
             'password_confirm': 'Password123!',
-            'first_name': 'Juan',
-            'last_name': 'Pérez',
-            'nombre_completo': 'Juan Pérez',
+            'nombre': 'Juan',
+            'apellido': 'Pérez',
             'rut': '12345678-5',
             'telefono': '+56912345678'
         }
@@ -224,9 +221,8 @@ class TestRegisterSerializer:
             'email': 'existente@test.com',  # Ya existe
             'password': 'Password123!',
             'password_confirm': 'Password123!',
-            'first_name': 'Juan',
-            'last_name': 'Pérez',
-            'nombre_completo': 'Juan Pérez',
+            'nombre': 'Juan',
+            'apellido': 'Pérez',
             'rut': '12345678-5',
             'telefono': '+56912345678'
         }

@@ -207,7 +207,9 @@ class TestAdminPermissions:
     def test_admin_puede_editar_cualquier_reserva(self, admin_client):
         """Los admins deben poder editar reservas de cualquier cliente"""
         perfil = PerfilClienteFactory()
-        reserva = ReservaFactory(cliente=perfil.user, num_personas=2)
+        # Crear mesa con capacidad suficiente para el test
+        mesa = MesaFactory(capacidad=8)
+        reserva = ReservaFactory(cliente=perfil.user, mesa=mesa, num_personas=2)
 
         data = {'num_personas': 6}
 
@@ -275,7 +277,8 @@ class TestAdminPermissions:
 
     def test_admin_puede_modificar_mesas(self, admin_client, mesa_disponible):
         """Los admins deben poder modificar mesas"""
-        data = {'estado': 'mantenimiento'}
+        # Estados válidos: 'disponible', 'reservada', 'ocupada', 'limpieza'
+        data = {'estado': 'limpieza'}
 
         response = admin_client.patch(
             f'/api/mesas/{mesa_disponible.id}/',

@@ -40,14 +40,14 @@ def user_cliente(db):
         first_name='Juan',
         last_name='Pérez'
     )
-    Perfil.objects.create(
-        user=user,
-        rol='cliente',
-        nombre_completo='Juan Pérez',
-        rut='12345678-5',
-        telefono='+56912345678',
-        email='cliente@test.com'
-    )
+    # El signal ya creó el Perfil automáticamente, solo lo actualizamos
+    perfil = user.perfil
+    perfil.rol = 'cliente'
+    perfil.nombre_completo = 'Juan Pérez'
+    perfil.rut = '12345678-5'
+    perfil.telefono = '+56912345678'
+    perfil.email = 'cliente@test.com'
+    perfil.save()
     return user
 
 
@@ -67,14 +67,14 @@ def user_admin(db):
         is_staff=True,
         is_superuser=True
     )
-    Perfil.objects.create(
-        user=user,
-        rol='admin',
-        nombre_completo='Admin Sistema',
-        rut='11111111-1',
-        telefono='+56911111111',
-        email='admin@test.com'
-    )
+    # El signal ya creó el Perfil automáticamente, solo lo actualizamos
+    perfil = user.perfil
+    perfil.rol = 'admin'
+    perfil.nombre_completo = 'Admin Sistema'
+    perfil.rut = '11111111-1'
+    perfil.telefono = '+56911111111'
+    perfil.email = 'admin@test.com'
+    perfil.save()
     return user
 
 
@@ -90,14 +90,14 @@ def user_cajero(db):
         first_name='María',
         last_name='González'
     )
-    Perfil.objects.create(
-        user=user,
-        rol='cajero',
-        nombre_completo='María González',
-        rut='22222222-2',
-        telefono='+56922222222',
-        email='cajero@test.com'
-    )
+    # El signal ya creó el Perfil automáticamente, solo lo actualizamos
+    perfil = user.perfil
+    perfil.rol = 'cajero'
+    perfil.nombre_completo = 'María González'
+    perfil.rut = '22222222-2'
+    perfil.telefono = '+56922222222'
+    perfil.email = 'cajero@test.com'
+    perfil.save()
     return user
 
 

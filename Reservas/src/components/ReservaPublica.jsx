@@ -252,6 +252,20 @@ export default function ReservaPublica({ onReservaExitosa }) {
     }
   };
 
+  const prepararDatosReservaParaModal = (apiResult, formValues) => {
+    const reservaPayload = apiResult?.reserva || {};
+
+    return {
+      id: reservaPayload.id ?? apiResult?.reserva_id ?? null,
+      mesa_numero: reservaPayload.mesa_numero ?? reservaPayload.mesa ?? apiResult?.mesa_numero ?? apiResult?.mesa ?? formValues.mesa,
+      mesa_capacidad: reservaPayload.mesa_capacidad ?? formValues.num_personas,
+      fecha_reserva: reservaPayload.fecha_reserva ?? apiResult?.fecha_reserva ?? formValues.fecha_reserva,
+      hora_inicio: reservaPayload.hora_inicio ?? apiResult?.hora_inicio ?? formValues.hora_inicio,
+      hora_fin: reservaPayload.hora_fin ?? apiResult?.hora_fin ?? null,
+      num_personas: reservaPayload.num_personas ?? apiResult?.num_personas ?? formValues.num_personas
+    };
+  };
+
   const onSubmit = handleSubmit(async (values) => {
     console.log('🚀 INICIO handleSubmit - values:', values);
     try {
@@ -273,16 +287,8 @@ export default function ReservaPublica({ onReservaExitosa }) {
       const result = await registerAndReserve(values);
       console.log('✅ API Response:', result);
 
-      // Preparar datos para el modal
-      const datosReserva = {
-        id: result.reserva.id || result.reserva_id,
-        mesa_numero: result.reserva.mesa_numero,
-        mesa_capacidad: result.reserva.mesa_capacidad || values.num_personas,
-        fecha_reserva: result.reserva.fecha_reserva,
-        hora_inicio: result.reserva.hora_inicio,
-        hora_fin: result.reserva.hora_fin,
-        num_personas: result.reserva.num_personas
-      };
+      // Preparar datos para el modal (maneja respuestas planas o anidadas)
+      const datosReserva = prepararDatosReservaParaModal(result, values);
 
       const datosCliente = {
         nombre: values.nombre,

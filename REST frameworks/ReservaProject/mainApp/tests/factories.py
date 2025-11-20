@@ -78,10 +78,36 @@ class PerfilFactory(DjangoModelFactory):
         perfil = PerfilFactory()  # Crea user + perfil automáticamente
         perfil_cliente = PerfilFactory(rol='cliente')
         perfil_admin = PerfilFactory(rol='admin')
+
+    IMPORTANTE: No usa django_get_or_create porque el signal post_save ya crea el Perfil
+    automáticamente. La factory solo actualiza los campos del Perfil creado por el signal.
     """
     class Meta:
         model = Perfil
-        django_get_or_create = ('user',)  # Si ya existe perfil para el user, lo usa
+        skip_postgeneration_save = True  # Evitar double save
+
+    @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        """
+        Sobrescribir _create para obtener el Perfil creado por el signal
+        y actualizarlo en lugar de intentar crear uno nuevo.
+        """
+        # Extraer el user y otros campos
+        user = kwargs.pop('user', None)
+        if user is None:
+            user = UserFactory()
+
+        # Obtener el Perfil que fue creado automáticamente por el signal
+        perfil = user.perfil
+
+        # Actualizar todos los campos del perfil
+        for key, value in kwargs.items():
+            setattr(perfil, key, value)
+
+        # Guardar los cambios
+        perfil.save()
+
+        return perfil
 
     user = factory.SubFactory(UserFactory)
     rol = 'cliente'
@@ -92,27 +118,6 @@ class PerfilFactory(DjangoModelFactory):
     telefono = factory.Faker('phone_number', locale='es_CL')
     email = factory.LazyAttribute(lambda obj: obj.user.email)
     es_invitado = False
-
-    @factory.post_generation
-    def actualizar_campos(obj, create, extracted, **kwargs):
-        """
-        Actualiza los campos del perfil después de que el signal lo creó.
-        """
-        if not create:
-            return
-
-        # Actualizar campos que el signal no configuró
-        obj.nombre_completo = f'{obj.user.first_name} {obj.user.last_name}'
-        obj.email = obj.user.email
-
-        # Generar RUT si no existe
-        if not obj.rut:
-            # Generar un RUT simple para testing
-            numero = obj.id if obj.id else 1
-            dv = numero % 10
-            obj.rut = f'1234567{numero % 10}-{dv}'
-
-        obj.save()
 
 
 class PerfilClienteFactory(PerfilFactory):
