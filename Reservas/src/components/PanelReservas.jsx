@@ -1161,12 +1161,12 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                         </button>
 
                         {showAdvancedSearch && (
-                            <div className="row g-3 mt-2">
-                                {/* Global search checkbox - always visible in advanced search */}
-                                {!showAllReservations && (
-                                    <div className="col-12 mb-2">
-                                        <div className="alert alert-info py-2 px-3 mb-0">
-                                            <div className="form-check mb-0">
+                            <div className="mt-2 p-2 bg-light rounded">
+                                <div className="row g-2">
+                                    {/* Global search checkbox - compact version */}
+                                    {!showAllReservations && (
+                                        <div className="col-12">
+                                            <div className="form-check">
                                                 <input
                                                     className="form-check-input"
                                                     type="checkbox"
@@ -1174,117 +1174,99 @@ function PanelReservas({ user, onLogout, showAllReservations = false }) {
                                                     checked={searchAllHistory}
                                                     onChange={(e) => setSearchAllHistory(e.target.checked)}
                                                 />
-                                                <label className="form-check-label" htmlFor="search-all-history">
+                                                <label className="form-check-label small" htmlFor="search-all-history">
                                                     <i className="bi bi-database me-1"></i>
                                                     <strong>Buscar en todo el historial</strong>
+                                                    <span className="text-muted ms-1">(últimos 7 días por defecto)</span>
                                                 </label>
-                                                <div className="small text-muted mt-1">
-                                                    Por defecto se busca en los últimos 7 días + reservas futuras. Activa esta opción para buscar en todas las fechas.
-                                                </div>
                                             </div>
                                         </div>
+                                    )}
+
+                                    {/* Date Range Filter - Compact version */}
+                                    {!showAllReservations && (
+                                        <>
+                                            <div className="col-md-3">
+                                                <label htmlFor="advanced-fecha-inicio" className="form-label small mb-1">
+                                                    <i className="bi bi-calendar-range me-1"></i>Fecha desde
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    id="advanced-fecha-inicio"
+                                                    className="form-control form-control-sm"
+                                                    value={fechaInicio}
+                                                    onChange={(e) => setFechaInicio(e.target.value)}
+                                                />
+                                            </div>
+
+                                            <div className="col-md-3">
+                                                <label htmlFor="advanced-fecha-fin" className="form-label small mb-1">
+                                                    <i className="bi bi-calendar-range me-1"></i>Fecha hasta
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    id="advanced-fecha-fin"
+                                                    className="form-control form-control-sm"
+                                                    value={fechaFin}
+                                                    min={fechaInicio || undefined}
+                                                    onChange={(e) => setFechaFin(e.target.value)}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className="col-md-2">
+                                        <label htmlFor="search-hora" className="form-label small mb-1">
+                                            <i className="bi bi-clock me-1"></i>Hora
+                                        </label>
+                                        <input
+                                            type="time"
+                                            id="search-hora"
+                                            className="form-control form-control-sm"
+                                            value={searchHora}
+                                            onChange={(e) => setSearchHora(e.target.value)}
+                                        />
                                     </div>
-                                )}
 
-                                {/* Date Range Filter - Only in normal mode */}
-                                {!showAllReservations && (
-                                    <>
-                                        <div className="col-12 mb-2 mt-3">
-                                            <div className="alert alert-secondary py-2 px-3 mb-0">
-                                                <strong>
-                                                    <i className="bi bi-calendar-range me-2"></i>
-                                                    Filtro por rango de fechas
-                                                </strong>
-                                                <div className="small text-muted mt-1">
-                                                    Filtra reservas entre dos fechas. Útil para ver reservas de la semana, mes, etc.
-                                                    Si usas este filtro, la fecha única de arriba se desactiva.
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <div className="col-md-2">
+                                        <label htmlFor="search-personas-min" className="form-label small mb-1">
+                                            <i className="bi bi-people me-1"></i>Pers. mín
+                                        </label>
+                                        <input
+                                            type="number"
+                                            id="search-personas-min"
+                                            className="form-control form-control-sm"
+                                            min="1"
+                                            value={searchPersonasMin}
+                                            onChange={(e) => setSearchPersonasMin(e.target.value)}
+                                            placeholder="Min"
+                                        />
+                                    </div>
 
-                                        <div className="col-md-3">
-                                            <label htmlFor="advanced-fecha-inicio" className="form-label small">
-                                                Fecha desde
-                                            </label>
-                                            <input
-                                                type="date"
-                                                id="advanced-fecha-inicio"
-                                                className="form-control form-control-sm"
-                                                value={fechaInicio}
-                                                onChange={(e) => setFechaInicio(e.target.value)}
-                                            />
-                                            <small className="text-muted">Inicio del rango (opcional)</small>
-                                        </div>
+                                    <div className="col-md-2">
+                                        <label htmlFor="search-personas-max" className="form-label small mb-1">
+                                            <i className="bi bi-people me-1"></i>Pers. máx
+                                        </label>
+                                        <input
+                                            type="number"
+                                            id="search-personas-max"
+                                            className="form-control form-control-sm"
+                                            min="1"
+                                            value={searchPersonasMax}
+                                            onChange={(e) => setSearchPersonasMax(e.target.value)}
+                                            placeholder="Max"
+                                        />
+                                    </div>
 
-                                        <div className="col-md-3">
-                                            <label htmlFor="advanced-fecha-fin" className="form-label small">
-                                                Fecha hasta
-                                            </label>
-                                            <input
-                                                type="date"
-                                                id="advanced-fecha-fin"
-                                                className="form-control form-control-sm"
-                                                value={fechaFin}
-                                                min={fechaInicio || undefined}
-                                                onChange={(e) => setFechaFin(e.target.value)}
-                                            />
-                                            <small className="text-muted">Fin del rango (opcional)</small>
-                                        </div>
-                                    </>
-                                )}
-
-                                <div className="col-md-3">
-                                    <label htmlFor="search-hora" className="form-label small">
-                                        Hora
-                                    </label>
-                                    <input
-                                        type="time"
-                                        id="search-hora"
-                                        className="form-control form-control-sm"
-                                        value={searchHora}
-                                        onChange={(e) => setSearchHora(e.target.value)}
-                                    />
-                                    <small className="text-muted">Busca por hora de reserva</small>
-                                </div>
-
-                                <div className="col-md-3">
-                                    <label htmlFor="search-personas-min" className="form-label small">
-                                        Personas (mínimo)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        id="search-personas-min"
-                                        className="form-control form-control-sm"
-                                        min="1"
-                                        value={searchPersonasMin}
-                                        onChange={(e) => setSearchPersonasMin(e.target.value)}
-                                        placeholder="Ej: 2"
-                                    />
-                                </div>
-
-                                <div className="col-md-3">
-                                    <label htmlFor="search-personas-max" className="form-label small">
-                                        Personas (máximo)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        id="search-personas-max"
-                                        className="form-control form-control-sm"
-                                        min="1"
-                                        value={searchPersonasMax}
-                                        onChange={(e) => setSearchPersonasMax(e.target.value)}
-                                        placeholder="Ej: 8"
-                                    />
-                                </div>
-
-                                <div className="col-md-3 d-flex align-items-end">
-                                    <button
-                                        className="btn btn-outline-danger btn-sm w-100"
-                                        onClick={clearAllFilters}
-                                    >
-                                        <i className="bi bi-x-circle me-1"></i>
-                                        Limpiar filtros
-                                    </button>
+                                    <div className="col-12 mt-2">
+                                        <button
+                                            className="btn btn-outline-danger btn-sm"
+                                            onClick={clearAllFilters}
+                                        >
+                                            <i className="bi bi-x-circle me-1"></i>
+                                            Limpiar filtros
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
